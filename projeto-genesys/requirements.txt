@@ -4,3 +4,11 @@ python-dotenv
 langchain
 chromadb
 llama-cpp-python
+
+# Dependências para Fine-Tuning (Fase 2)
+transformers
+datasets
+peft
+bitsandbytes
+trl
+accelerate
