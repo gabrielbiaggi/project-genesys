@@ -4,6 +4,11 @@ python-dotenv
 langchain
 chromadb
 llama-cpp-python
+requests
+streamlit
+duckduckgo-search
+pywinpty
+python-multipart
 
 # Dependências para Fine-Tuning (Fase 2)
 transformers
@@ -12,6 +17,3 @@ peft
 bitsandbytes
 trl
 accelerate
-requests
-streamlit
-duckduckgo-search

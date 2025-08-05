@@ -8,113 +8,151 @@ from transformers import (
     BitsAndBytesConfig,
     TrainingArguments,
 )
-from peft import LoraConfig
+from peft import LoraConfig, PeftModel, get_peft_model
 from trl import SFTTrainer
 from dotenv import load_dotenv
 
-# Carregar variáveis de ambiente
-load_dotenv(dotenv_path='../.env')
+# --- NOTA DE EXECUÇÃO ---
+# Este script foi projetado para ser executado dentro do ambiente WSL2 com CUDA configurado,
+# pois dependências como 'bitsandbytes' são otimizadas para Linux.
 
-def train():
+def fine_tune_model():
     """
-    Função principal para executar o fine-tuning do modelo.
+    Executa o processo de fine-tuning do modelo Gênesis usando os dados de interação logados.
     """
-    # --- Configurações ---
-    model_name = os.getenv("MODEL_NAME") # Ex: "Meta-Llama-3-8B-Instruct"
-    # O dataset de treinamento
-    dataset_name = os.path.join(os.path.dirname(__file__), '..', 'data', 'training_dataset.jsonl')
-    # O nome do novo modelo adaptado (LoRA)
-    new_model_name = f"{model_name}-finetuned"
-    # Diretório para salvar os checkpoints e o modelo final
-    output_dir = os.path.join(os.path.dirname(__file__), '..', 'models', new_model_name)
+    print("--- Iniciando o Processo de Fine-Tuning do Agente Gênesis ---")
 
-    # --- Carregar Dataset ---
-    print(f"Carregando dataset de: {dataset_name}")
-    dataset = load_dataset('json', data_files=dataset_name, split="train")
+    # 1. Carregar Configurações do Ambiente
+    load_dotenv(dotenv_path='../.env')
+    base_model_name = os.getenv("MODEL_GGUF_FILENAME")
+    if not base_model_name:
+        raise ValueError("MODEL_GGUF_FILENAME não encontrado no arquivo .env. O fine-tuning não pode continuar.")
+    
+    # O fine-tuning requer o modelo original do Hugging Face, não o GGUF.
+    # Vamos derivar o nome do repositório a partir da configuração do GGUF.
+    # Ex: ikawrakow/Meta-Llama-3-70B-Instruct-GGUF -> meta-llama/Meta-Llama-3-70B-Instruct
+    # Esta é uma suposição que pode precisar de ajuste manual.
+    hf_repo_id = "meta-llama/Meta-Llama-3-70B-Instruct" # Ajuste se o modelo base for outro
+    print(f"Usando o modelo base do Hugging Face: {hf_repo_id}")
 
-    # --- Configuração de Quantização (QLoRA) ---
-    # Isso permite treinar modelos grandes em hardware mais modesto
-    compute_dtype = getattr(torch, "float16")
-    quant_config = BitsAndBytesConfig(
+    # Caminho para salvar os adaptadores LoRA treinados
+    output_dir = os.path.join(os.path.dirname(__file__), '..', 'models', 'genesys-adapter-v1')
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Os adaptadores treinados serão salvos em: {output_dir}")
+
+    # 2. Carregar o Dataset de Logs
+    log_file_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs', 'interaction_logs.jsonl')
+    if not os.path.exists(log_file_path):
+        print(f"Arquivo de log '{log_file_path}' não encontrado. Não há dados para treinar. Encerrando.")
+        return
+
+    print(f"Carregando dataset de: {log_file_path}")
+    dataset = load_dataset('json', data_files=log_file_path, split='train')
+
+    # 3. Configurar Quantização (BitsAndBytes) para economizar VRAM
+    # Carregamos o modelo em 4-bit para o treinamento.
+    bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=compute_dtype,
-        bnb_4bit_use_double_quant=False,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True,
     )
+    print("Configuração de quantização (4-bit) definida.")
 
-    # --- Carregar Modelo e Tokenizer Base ---
-    print(f"Carregando modelo base: {model_name}")
-    # Nota: Para o fine-tuning, usamos o modelo original da Hugging Face, não o GGUF.
-    # O `llama-cpp-python` é para inferência, `transformers` é para treinamento.
-    base_model = AutoModelForCausalLM.from_pretrained(
-        f"meta-llama/{model_name}",
-        quantization_config=quant_config,
-        device_map={"": 0} # Usa a primeira GPU disponível
+    # 4. Carregar o Modelo e o Tokenizer
+    print("Carregando modelo e tokenizer. Isso pode levar alguns minutos...")
+    model = AutoModelForCausalLM.from_pretrained(
+        hf_repo_id,
+        quantization_config=bnb_config,
+        device_map="auto",  # Deixa o accelerate decidir como distribuir o modelo (GPU, CPU, etc.)
+        trust_remote_code=True
     )
-    base_model.config.use_cache = False
-    base_model.config.pretraining_tp = 1
+    model.config.use_cache = False
+    model.config.pretraining_tp = 1
 
-    tokenizer = AutoTokenizer.from_pretrained(f"meta-llama/{model_name}", trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(hf_repo_id, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
+    print("Modelo e tokenizer carregados com sucesso.")
 
-    # --- Configuração do PEFT (LoRA) ---
-    peft_parameters = LoraConfig(
+    # 5. Configurar o LoRA (Low-Rank Adaptation)
+    peft_config = LoraConfig(
         lora_alpha=16,
         lora_dropout=0.1,
         r=64,
         bias="none",
         task_type="CAUSAL_LM",
+        target_modules=[ # Módulos específicos para o Llama 3
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ]
     )
+    model = get_peft_model(model, peft_config)
+    print("Modelo configurado com adaptadores LoRA.")
 
-    # --- Argumentos de Treinamento ---
-    training_parameters = TrainingArguments(
+    # 6. Definir os Argumentos de Treinamento
+    training_arguments = TrainingArguments(
         output_dir=output_dir,
-        num_train_epochs=1,
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=1,
+        num_train_epochs=1,  # Comece com 1 época, aumente se necessário
+        per_device_train_batch_size=1, # Batch size pequeno devido ao tamanho do modelo
+        gradient_accumulation_steps=4, # Simula um batch size maior (1*4=4)
         optim="paged_adamw_32bit",
-        save_steps=25,
-        logging_steps=25,
+        save_steps=50,
+        logging_steps=10,
         learning_rate=2e-4,
         weight_decay=0.001,
         fp16=False,
-        bf16=False,
+        bf16=True, # Use bf16 para melhor performance em GPUs Ampere+ (como a RTX 4060)
         max_grad_norm=0.3,
         max_steps=-1,
         warmup_ratio=0.03,
         group_by_length=True,
-        lr_scheduler_type="constant",
+        lr_scheduler_type="cosine",
+        report_to="tensorboard"
     )
+    print("Argumentos de treinamento definidos.")
 
-    # --- Inicializar o Treinador ---
+    # 7. Inicializar o Trainer com SFTTrainer
+    # SFTTrainer cuidará da formatação do prompt para nós.
+    # Ele espera uma coluna 'text' no dataset. Vamos formatá-la.
+    def format_dataset(example):
+        # Formato básico de instrução para o Llama 3
+        return {'text': f"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\\n\\n{example['prompt']}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n{example['response']}<|eot_id|>"}
+
+    formatted_dataset = dataset.map(format_dataset)
+    
     trainer = SFTTrainer(
-        model=base_model,
-        train_dataset=dataset,
-        peft_config=peft_parameters,
-        dataset_text_field="text", # O nome da coluna no seu JSONL que contém o texto de treino
-        max_seq_length=None,
+        model=model,
+        train_dataset=formatted_dataset,
+        peft_config=peft_config,
+        dataset_text_field="text",
+        max_seq_length=2048, # Reduza se ocorrerem erros de memória
         tokenizer=tokenizer,
-        args=training_parameters,
+        args=training_arguments,
         packing=False,
     )
+    print("SFTTrainer inicializado. Começando o treinamento...")
 
-    # --- Iniciar Treinamento ---
-    print("Iniciando o processo de fine-tuning...")
+    # 8. Iniciar o Treinamento
     trainer.train()
 
-    # --- Salvar o Modelo Treinado ---
-    print(f"Salvando o modelo adaptado em: {output_dir}")
-    trainer.model.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    print("Fine-tuning concluído com sucesso!")
+    # 9. Salvar o Modelo Treinado (Apenas os adaptadores LoRA)
+    trainer.save_model(output_dir)
+    print(f"--- Treinamento Concluído! Adaptadores salvos em '{output_dir}' ---")
+    print("Para usar o modelo treinado, você precisará carregar o modelo base e, em seguida, fundir esses adaptadores.")
 
 if __name__ == "__main__":
-    # É necessário ter o CUDA e as dependências corretas instaladas.
-    # Este script é para ser executado no servidor com GPU.
-    print("AVISO: Este script iniciará um processo de treinamento intensivo de GPU.")
-    confirm = input("Você tem certeza que deseja continuar? (s/n): ")
-    if confirm.lower() == 's':
-        train()
+    # Adicionar um prompt para garantir que o usuário sabe que precisa estar no WSL
+    if os.name == 'nt':
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ATENÇÃO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("Este script de fine-tuning foi projetado para ser executado no ambiente WSL (Subsistema Windows para Linux).")
+        print("Ele requer CUDA e dependências específicas do Linux para funcionar corretamente.")
+        print("Por favor, execute este script a partir do seu terminal Ubuntu/WSL.")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     else:
-        print("Treinamento cancelado.")
+        fine_tune_model()
