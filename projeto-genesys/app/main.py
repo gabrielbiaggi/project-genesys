@@ -3,69 +3,46 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 import os
+from pydantic import BaseModel, Field
+from typing import List, Dict
+
+# Importar a lógica de criação do agente
+from app.agent_logic import create_genesis_agent
 
 # Carregar variáveis de ambiente do arquivo .env
-load_dotenv(dotenv_path='../.env')
+load_dotenv(dotenv_path='.env')
 
-# --- Seção de Carregamento do Modelo (a ser ativada) ---
-# Aqui é onde instanciaremos o nosso modelo de linguagem.
-# Por enquanto, está comentado para garantir que o servidor suba sem o modelo.
+# --- Seção de Criação do Agente ---
+# Isso agora inicializa o agente completo com ferramentas e memória.
+agent_executor = create_genesis_agent()
 
-# from langchain_community.llms import LlamaCpp
-# from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
-# from langchain.chains import ConversationChain
-# from langchain.memory import ConversationBufferWindowMemory
-# from langchain.prompts import PromptTemplate
-
-# # --- Configuração da Memória (Hipocampo) ---
-# # Usaremos uma memória de conversação com janela para manter o contexto recente.
-# memory = ConversationBufferWindowMemory(k=5) # Lembra das últimas 5 interações
-
-# # --- Configuração do Modelo ---
-# model_name = os.getenv("MODEL_NAME")
-# model_quantization = os.getenv("MODEL_QUANTIZATION")
-# # O caminho agora aponta para um diretório 'models' na raiz do projeto
-# model_path = f"./models/{model_name}.{model_quantization}.gguf"
-
-# # Gerenciador de Callbacks para streaming da resposta no console
-# callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-
-# # Carregar o modelo de linguagem
-# llm = LlamaCpp(
-#     model_path=model_path,
-#     n_gpu_layers=-1,
-#     n_batch=512,
-#     n_ctx=4096, # Aumentando o contexto
-#     f16_kv=True,
-#     callback_manager=callback_manager,
-#     verbose=True,
-# )
-
-# # --- Template de Prompt (A Personalidade do Agente) ---
-# # Este template guia o comportamento do nosso agente.
-# template = """
-# Você é o Agente Gênesys, uma IA soberana especializada em programação e assistência de desenvolvimento.
-# Sua missão é auxiliar seu criador a construir, analisar e otimizar projetos de software.
-# Você é colaborativo, preciso e está sempre aprendendo.
-# Lembre-se das interações passadas para manter o contexto.
-
-# Conversa Atual:
-# {history}
-# Criador: {input}
-# Agente Gênesys:
-# """
-
-# PROMPT = PromptTemplate(input_variables=["history", "input"], template=template)
-
-# # --- A Cadeia de Conversação (O Sistema Nervoso Central) ---
-# # Une o prompt, o modelo e a memória.
-# conversation = ConversationChain(
-#     prompt=PROMPT,
-#     llm=llm,
-#     verbose=True,
-#     memory=memory
-# )
 # ---------------------------------------------------------
+
+# Modelo de dados para a requisição
+class ChatRequest(BaseModel):
+    prompt: str
+
+# --- Modelos para compatibilidade com a API OpenAI/Cursor ---
+class OpenAIMessage(BaseModel):
+    role: str
+    content: str
+
+class OpenAIChatRequest(BaseModel):
+    model: str
+    messages: List[OpenAIMessage]
+    temperature: float = 0.7
+
+class OpenAIChatChoice(BaseModel):
+    index: int = 0
+    message: OpenAIMessage
+    finish_reason: str = "stop"
+
+class OpenAIChatResponse(BaseModel):
+    id: str = "chatcmpl-genesys"
+    object: str = "chat.completion"
+    created: int = 0
+    model: str
+    choices: List[OpenAIChatChoice]
 
 # Instanciar a aplicação FastAPI
 app = FastAPI(
@@ -82,19 +59,46 @@ async def root():
     return {"message": f"Bem-vindo ao projeto-genesys. Servidor operacional. Modelo '{os.getenv('MODEL_NAME')}' aguardando ordens."}
 
 @app.post("/chat", tags=["Interação"])
-async def chat_with_agent(prompt: str):
+async def chat_with_agent(request: ChatRequest):
     """
     Endpoint para interagir com o Agente Gênesys.
+    Recebe um prompt e retorna a resposta do agente.
     """
-    # Lógica de resposta do modelo (quando ativado)
-    # response = conversation.predict(input=prompt)
-    # return {"response": response}
+    try:
+        # Usamos o agent_executor para invocar o agente com o prompt.
+        response = agent_executor.invoke({"input": request.prompt})
+        return {"response": response.get("output")}
+    except Exception as e:
+        # Tratamento de erro para o caso de o modelo falhar ou outro problema ocorrer
+        return {"error": f"Ocorreu um erro ao processar sua solicitação: {str(e)}"}
+
+@app.post("/v1/chat/completions", tags=["Compatibilidade Cursor/OpenAI"], response_model=OpenAIChatResponse)
+async def openai_compatible_chat(request: OpenAIChatRequest):
+    """
+    Endpoint compatível com a API da OpenAI para integração com o Cursor.
+    """
+    # Extrai a última mensagem do usuário para usar como prompt
+    user_prompt = ""
+    if request.messages:
+        user_prompt = request.messages[-1].content
     
-    # Resposta placeholder enquanto o modelo não está ativo
-    return {"message": "Endpoint de chat está pronto. A lógica do modelo precisa ser ativada.", "received_prompt": prompt}
+    try:
+        # Invoca o agente Gênesys
+        agent_response = agent_executor.invoke({"input": user_prompt})
+        response_text = agent_response.get("output", "Não consegui gerar uma resposta.")
+
+        # Constrói a resposta no formato OpenAI
+        response_message = OpenAIMessage(role="assistant", content=response_text)
+        choice = OpenAIChatChoice(message=response_message)
+        return OpenAIChatResponse(model=request.model, choices=[choice])
+
+    except Exception as e:
+        error_message = OpenAIMessage(role="assistant", content=f"Erro no Agente Gênesys: {str(e)}")
+        choice = OpenAIChatChoice(message=error_message)
+        return OpenAIChatResponse(model=request.model, choices=[choice])
 
 
 if __name__ == "__main__":
     import uvicorn
-    # Para rodar: uvicorn app.main:app --reload --app-dir .
+    # Para rodar: uvicorn app.main:app --reload
     uvicorn.run("main:app", host=os.getenv("API_HOST", "0.0.0.0"), port=int(os.getenv("API_PORT", 8000)), reload=True)

@@ -12,3 +12,6 @@ peft
 bitsandbytes
 trl
 accelerate
+requests
+streamlit
+duckduckgo-search

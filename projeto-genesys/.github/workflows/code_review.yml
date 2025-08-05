@@ -1,0 +1,52 @@
+# .github/workflows/code_review.yml
+name: "Revisão de Código com Agente Gênesys"
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2 # Precisamos do commit anterior para comparar
+
+      - name: Obter informações do último commit
+        id: commit_info
+        run: |
+          echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+          echo "COMMIT_DIFF=$(git diff HEAD~1 HEAD)" >> $GITHUB_ENV
+
+      - name: Enviar para revisão do Agente Gênesys
+        id: genesis_review
+        run: |
+          PROMPT="Faça uma revisão de código para o seguinte commit. Mensagem: '${{ env.COMMIT_MESSAGE }}'. Diff das mudanças: \n\n${{ env.COMMIT_DIFF }}"
+          
+          JSON_PAYLOAD=$(jq -n --arg prompt "$PROMPT" '{"prompt": $prompt}')
+
+          RESPONSE=$(curl -s -X POST "${{ secrets.GENESYS_API_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.GENESYS_API_TOKEN }}" \
+            -d "$JSON_PAYLOAD")
+            
+          # Extrai a resposta e a prepara para o próximo passo
+          REVIEW_COMMENT=$(echo "$RESPONSE" | jq -r .response)
+          echo "REVIEW_COMMENT<<EOF" >> $GITHUB_ENV
+          echo "$REVIEW_COMMENT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Comentar no Commit
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `### 🤖 Revisão do Agente Gênesys:\n\n${process.env.REVIEW_COMMENT}`
+            })
