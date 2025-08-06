@@ -1,6 +1,6 @@
 <script setup>
 import { defineProps, defineEmits } from 'vue';
-import VueDiff, { DiffMode } from 'vue-diff';
+import VueDiff from 'vue-diff';
 
 const props = defineProps({
   diffText: {
@@ -20,7 +20,7 @@ const emits = defineEmits(['approve', 'reject']);
   <div class="diff-viewer-container p-2 border-t border-gray-700">
     <h3 class="text-md font-bold mb-2 text-gray-300">Proposta de Alteração</h3>
     <div class="max-h-96 overflow-y-auto rounded bg-gray-800 p-2 text-xs">
-      <VueDiff :mode="DiffMode.UNIFIED" theme="dark" :old-string="''" :new-string="diffText" />
+      <VueDiff :mode="'unified'" theme="dark" :old-string="''" :new-string="diffText" />
     </div>
     <div class="flex justify-end space-x-2 mt-3">
       <button 

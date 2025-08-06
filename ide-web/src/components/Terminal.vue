@@ -4,7 +4,10 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
-const API_WS_URL = 'ws://localhost:8000/ws/terminal';
+// Constrói a URL do WebSocket a partir da URL base da API
+const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
+const wsUrl = baseUrl.replace(/^http/, 'ws');
+const API_WS_URL = `${wsUrl}/ws/terminal`;
 
 const terminalRef = ref(null);
 let term;

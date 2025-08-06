@@ -1,8 +1,10 @@
 <script setup>
+import { store } from './store.js';
 import FileExplorer from './components/FileExplorer.vue'
 import CodeEditor from './components/CodeEditor.vue'
 import AgentPanel from './components/AgentPanel.vue'
 import Terminal from './components/Terminal.vue'
+import ActivityPanel from './components/ActivityPanel.vue' // Importar o novo painel
 </script>
 
 <template>
@@ -12,16 +14,21 @@ import Terminal from './components/Terminal.vue'
       <FileExplorer />
     </div>
 
-    <!-- Área Central -->
+    <!-- Área Central Dinâmica -->
     <div class="w-3/5 flex flex-col flex-grow">
-      <!-- Painel Superior: Editor de Código -->
-      <div class="h-3/5">
-        <CodeEditor />
-      </div>
-      <!-- Painel Inferior: Terminal -->
-      <div class="h-2/5 border-t-2 border-gray-700">
-        <Terminal />
-      </div>
+      <!-- Visão Padrão: Editor e Terminal -->
+      <template v-if="!store.isAgentActive">
+        <div class="h-3/5">
+          <CodeEditor />
+        </div>
+        <div class="h-2/5 border-t-2 border-gray-700">
+          <Terminal />
+        </div>
+      </template>
+      <!-- Visão de Atividade: Painel de Atividade do Agente -->
+      <template v-else>
+        <ActivityPanel />
+      </template>
     </div>
 
     <!-- Coluna da Direita: Painel do Agente -->

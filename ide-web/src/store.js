@@ -2,7 +2,7 @@
 import { reactive } from 'vue';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
 
 // O estado reativo da nossa IDE
 export const store = reactive({
@@ -11,12 +11,17 @@ export const store = reactive({
   activeFileContent: '',
   isLoadingFiles: false,
   isLoadingFileContent: false,
-  isUploadingFile: false, // Novo estado para o feedback de upload
+  isUploadingFile: false,
+  isLoading: false, // Estado de carregamento genérico para o agente
   error: null,
   // Estado para o fluxo de Diff & Approve
   proposedDiff: null,
   newContentForApply: null,
   isApplyingChange: false,
+  isAgentActive: false, // Novo estado para controlar a visão central
+  // Estados para o ActivityPanel
+  thoughtLog: [],
+  finalResponse: '',
 });
 
 // Ações para modificar o estado
@@ -92,6 +97,35 @@ export const actions = {
     } finally {
       store.isApplyingChange = false;
     }
+  },
+
+  // Ação centralizada para enviar diretivas ao agente
+  async sendDirective(payload) {
+    store.isLoading = true;
+    store.isAgentActive = true; // Ativa a visão de atividade
+    store.error = null;
+    this.clearProposedDiff();
+
+    try {
+      const response = await axios.post(`${API_URL}/chat`, payload);
+      return response.data; // Retorna os dados para o componente lidar
+    } catch (e) {
+      console.error(e);
+      const errorMessage = e.response?.data?.error || e.response?.data?.detail || e.message || 'Um erro desconhecido ocorreu.';
+      store.error = `Falha na comunicação com o Agente: ${errorMessage}`;
+      throw e; // Lança o erro para o componente saber que falhou
+    } finally {
+      store.isLoading = false;
+      // Não desativamos o isAgentActive aqui, a UI pode querer manter a visão
+    }
+  },
+
+  // Nova ação para resetar a visão
+  resetView() {
+    store.isAgentActive = false;
+    this.clearProposedDiff();
+    store.thoughtLog = [];
+    store.finalResponse = '';
   },
 
   // Nova ação para fazer upload de arquivos

@@ -99,18 +99,23 @@ Todos os comandos a seguir devem ser executados em um terminal **PowerShell** no
 
 3.  **Crie o Arquivo de Configuração `.env`**:
     -   Na raiz do projeto (`C:\DEV\myproject`), crie um arquivo chamado `.env`.
-    -   Copie e cole o seguinte conteúdo nele. **Altere os valores conforme necessário.**
+    -   Copie e cole o seguinte conteúdo nele. **Este é o coração da configuração do seu agente.**
 
     ```dotenv
     # --- Configuração do Modelo de IA ---
-    # Repositório Hugging Face para o modelo GGUF.
-    HUGGING_FACE_REPO_ID="ikawrakow/Meta-Llama-3-70B-Instruct-GGUF"
-    # Nome exato do arquivo do modelo a ser baixado. Q2_K é bom para 128GB de RAM.
-    MODEL_GGUF_FILENAME="Llama-3-70B-Instruct.Q2_K.gguf"
+    # Repositório Hugging Face para o modelo multimodal LLaVA de 70B.
+    HUGGING_FACE_REPO_ID="mindrage/Llama-3-70B-Instruct-v2-LLaVA-GGUF"
+    
+    # Nome exato do arquivo do modelo a ser baixado. 
+    # Q4_K_M é o melhor equilíbrio para sua RAM e GPU.
+    MODEL_GGUF_FILENAME="Llama-3-70B-Instruct-v2-Q4_K_M.gguf"
+
+    # Nome do projetor multimodal, essencial para a análise de imagens.
+    MULTIMODAL_PROJECTOR_FILENAME="mmproj-Llama-3-70B-Instruct-v2-f16.gguf"
 
     # --- Configuração da API ---
     API_HOST="0.0.0.0"
-    API_PORT="8000"
+    API_PORT="8002" # Alterado de 8000 para evitar conflitos
 
     # --- Token do Túnel Cloudflare (para a Parte 4) ---
     # Obtenha este token do seu painel Cloudflare Zero Trust.
@@ -118,7 +123,7 @@ Todos os comandos a seguir devem ser executados em um terminal **PowerShell** no
     ```
 
 4.  **Baixe o Modelo de IA**:
-    Este script lerá o arquivo `.env` e baixará o modelo especificado para a pasta `./models`.
+    Este script lerá o arquivo `.env` e baixará os arquivos do modelo e do projetor especificados para a pasta `./models`.
     ```powershell
     python scripts/download_model.py
     ```
@@ -141,29 +146,63 @@ Abra um **novo terminal PowerShell** e execute os seguintes comandos.
 
 ## Parte 3: Executando o Projeto Gênesis
 
-Agora que tudo está instalado, veja como iniciar os dois componentes.
+Com tudo instalado, você tem duas maneiras de executar o projeto, dependendo da sua máquina.
 
-1.  **Inicie o Backend (API FastAPI)**:
-    -   No **primeiro terminal PowerShell** (com o ambiente Python `venv` ativado).
+### Cenário A: Modo Servidor Completo (Máquina Principal com GPU)
+
+Use este modo no seu servidor principal para ter acesso ao Agente de IA, ao terminal interativo e a todas as funcionalidades.
+
+1.  **Terminal 1 - Iniciar o Backend (API FastAPI)**:
+    -   Abra um **PowerShell**.
     -   Navegue até a raiz do projeto: `cd C:\DEV\myproject`.
-    -   Execute o servidor:
+    -   Ative o ambiente virtual principal: `.\venv\Scripts\Activate.ps1`.
+    -   Instale as dependências completas (só precisa fazer isso uma vez): `pip install -r requirements.txt`.
+    -   Inicie o servidor:
         ```powershell
-        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+        uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
         ```
-    -   O servidor estará rodando e aguardando conexões. Você verá a saída do uvicorn.
 
-2.  **Inicie o Frontend (IDE Web)**:
-    -   No **segundo terminal PowerShell**.
+2.  **Terminal 2 - Iniciar o Frontend (IDE Web)**:
+    -   Abra um **novo PowerShell**.
     -   Navegue até a pasta da IDE: `cd C:\DEV\myproject\ide-web`.
-    -   Execute o servidor de desenvolvimento:
+    -   Inicie o servidor de desenvolvimento:
         ```powershell
         npm run dev
         ```
-    -   O terminal mostrará um endereço local, geralmente `http://localhost:5173/`.
 
-3.  **Acesse a IDE Gênesis**:
-    -   Abra seu navegador (Chrome, Firefox, etc.) e vá para o endereço fornecido pelo `npm run dev`.
-    -   **Pronto!** Você está na sua IDE Web. Você pode ver os arquivos, usar o terminal e dar diretivas ao agente.
+3.  **Acesse a IDE**:
+    -   No navegador, acesse o endereço de `Network` fornecido pelo Vite (ex: `http://10.10.50.62:5175`).
+
+### Cenário B: Modo de Desenvolvimento de UI (Notebook sem GPU)
+
+Use este modo no seu notebook para trabalhar na interface da IDE. O Agente de IA e o terminal ficarão desativados, mas o restante da interface funcionará.
+
+1.  **Terminal 1 - Iniciar o Backend (Modo Leve)**:
+    -   Abra um **PowerShell**.
+    -   Navegue até a raiz do projeto: `cd C:\DEV\myproject`.
+    -   Crie e ative um ambiente virtual separado:
+        ```powershell
+        python -m venv venv-notebook
+        .\venv-notebook\Scripts\Activate.ps1
+        ```
+    -   Instale as dependências mínimas (só precisa fazer isso uma vez): `pip install -r requirements-notebook.txt`.
+    -   Inicie o servidor:
+        ```powershell
+        python -m uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+        ```
+    -   *Nota: Você verá um AVISO no console de que o Agente não foi carregado. Isso é esperado.*
+
+2.  **Terminal 2 - Iniciar o Frontend (IDE Web)**:
+    -   Abra um **novo PowerShell**.
+    -   Navegue até a pasta da IDE: `cd C:\DEV\myproject\ide-web`.
+    -   **Importante**: Crie um arquivo chamado `.env.development.local` nesta pasta e adicione a linha `VITE_API_BASE_URL=http://<IP_DO_SEU_SERVIDOR>:8002`, substituindo `<IP_DO_SEU_SERVIDOR>` pelo IP da máquina onde o backend está rodando.
+    -   Inicie o servidor de desenvolvimento:
+        ```powershell
+        npm run dev
+        ```
+
+3.  **Acesse a IDE**:
+    -   No navegador, acesse `http://localhost:5175`.
 
 ---
 
@@ -200,7 +239,7 @@ Vou fornecer um script PowerShell que baixa as ferramentas necessárias (`cloudf
 3.  **Subdomain**: `genesys` (ou o que preferir).
 4.  **Domain**: Selecione seu domínio.
 5.  **Service -> Type**: `HTTP`
-6.  **Service -> URL**: `localhost:8000` (a porta do seu backend FastAPI).
+6.  **Service -> URL**: `localhost:8002` (a porta do seu backend FastAPI).
 7.  Salve o hostname.
 
 **Pronto!** Agora você pode acessar sua IDE através do endereço `https://genesys.seudominio.com`. A Cloudflare gerencia a conexão segura.
@@ -213,6 +252,6 @@ O processo será:
 1.  Formatar os logs para o formato de dataset esperado.
 2.  Executar o script `scripts/fine_tune.py` (este script requer um ambiente Linux com CUDA, por isso a importância do WSL).
 3.  Isso criará um novo modelo "adaptado" na pasta `/models`.
-4.  Atualizaremos o arquivo `.env` para apontar para o novo modelo treinado, tornando o agente progressivamente mais inteligente e alinhado a você.
+4.  Atualizaremos o arquivo `.env` para apontar para o novo modelo treinado, tornando o agente Gênesis progressivamente mais inteligente e alinhado a você.
 
 Este manual será atualizado conforme evoluímos para esta fase.

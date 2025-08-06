@@ -1,25 +1,51 @@
 # app/main.py
+import sys
+import os
+
+# --- Correção Crítica para o PYTHONPATH ---
+# Adiciona o diretório raiz do projeto ao sys.path.
+# Isso garante que as importações como 'from app.tools...' funcionem
+# de forma confiável, especialmente com o reloader do Uvicorn.
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+# --- Fim da Correção ---
+
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
 import json
 from pydantic import BaseModel
-from typing import List
-import pywinpty
+from typing import List, Optional
+import pywinpty # Reativado para o modo servidor completo
 import asyncio
 import shutil
+import base64
 
-# Importar a lógica de criação do agente e ferramentas
-from app.agent_logic import create_genesys_agent
-from app.tools.file_system_tool import SAFE_WORKSPACE, list_files, read_file, propose_file_change, apply_file_change
+# --- Carregamento Condicional do Agente ---
+# Isso permite que o servidor inicie mesmo sem as dependências pesadas de IA.
+agent_executor = None
+multimodal_chat_handler = None
+create_multimodal_message = None
+
+try:
+    # Tenta importar as dependências pesadas
+    from app.agent_logic import create_genesys_agent, create_multimodal_message
+    from app.tools.file_system_tool import list_files, read_file, apply_file_change, SAFE_WORKSPACE
+    agent_executor, multimodal_chat_handler = create_genesys_agent()
+    print("INFO: Agente Gênesis e ferramentas carregados com sucesso.")
+except (ImportError, Exception) as e:
+    print(f"AVISO: Dependências de IA não encontradas ou falha ao carregar o agente ({e}). Servidor rodando em modo de gerenciamento de arquivos apenas.")
+    # Se a importação falhar, defina as ferramentas de arquivo que não dependem de IA
+    from app.tools.file_system_tool_standalone import list_files, read_file, apply_file_change, SAFE_WORKSPACE
+
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv(dotenv_path='.env')
 
 # --- Seção de Criação do Agente ---
-agent_executor = create_genesys_agent()
+# Movido para dentro do bloco try/except acima
 
 # --- Configuração do Logging de Interações para Fine-Tuning ---
 LOGS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs')
@@ -52,6 +78,7 @@ def log_interaction(prompt: str, response: dict):
 # --- Modelos de Dados Pydantic ---
 class ChatRequest(BaseModel):
     prompt: str
+    image: str | None = None # Imagem opcional, em base64
 
 class FilePathRequest(BaseModel):
     path: str
@@ -87,31 +114,56 @@ async def root():
 @app.post("/chat", tags=["Interação com Agente"])
 async def chat_with_agent(request: ChatRequest):
     """
-    Endpoint para interagir com o Agente Gênesys.
-    Recebe um prompt, retorna a resposta do agente e loga a interação.
+    Endpoint para interagir com o Agente Gênesis.
+    Recebe um prompt e, opcionalmente, uma imagem.
+    Retorna a resposta do agente e loga a interação.
     """
+    if not agent_executor:
+        return JSONResponse(
+            status_code=503, # Service Unavailable
+            content={"error": "O Agente de IA não está disponível ou não foi carregado. O servidor está em modo de desenvolvimento de UI."}
+        )
+        
     try:
-        response = agent_executor.invoke({"input": request.prompt})
-        
-        # Loga a interação completa para futuro fine-tuning
-        log_interaction(request.prompt, response)
+        # --- Lógica de Roteamento: Multimodal vs. Ferramentas ---
+        if request.image and multimodal_chat_handler and create_multimodal_message:
+            # Rota Multimodal: Lida com texto e imagem
+            print("Executando rota de chat multimodal (LLaVA)...")
+            image_bytes = base64.b64decode(request.image)
+            message = create_multimodal_message(request.prompt, image_bytes)
+            
+            # Invoca o handler LLaVA
+            result = multimodal_chat_handler.invoke(message)
+            
+            # Log simples para a interação multimodal
+            log_interaction(request.prompt, {"output": result})
+            
+            return {"response": result, "intermediate_steps": []}
 
-        # Prepara os intermediate_steps para serem enviados como JSON
-        serializable_steps = []
-        if "intermediate_steps" in response:
-            for step in response["intermediate_steps"]:
-                action, observation = step
-                serializable_steps.append({
-                    "tool": action.tool,
-                    "tool_input": action.tool_input,
-                    "log": action.log,
-                    "observation": observation
-                })
-        
-        return {
-            "response": response.get("output", "O agente não forneceu uma saída."),
-            "intermediate_steps": serializable_steps
-        }
+        else:
+            # Rota Padrão: Agente com ferramentas (ReAct)
+            print("Executando rota de agente com ferramentas (ReAct)...")
+            response = agent_executor.invoke({"input": request.prompt})
+            
+            # Loga a interação completa para futuro fine-tuning
+            log_interaction(request.prompt, response)
+
+            # Prepara os intermediate_steps para serem enviados como JSON
+            serializable_steps = []
+            if "intermediate_steps" in response:
+                for step in response["intermediate_steps"]:
+                    action, observation = step
+                    serializable_steps.append({
+                        "tool": action.tool,
+                        "tool_input": action.tool_input,
+                        "log": action.log,
+                        "observation": observation
+                    })
+            
+            return {
+                "response": response.get("output", "O agente não forneceu uma saída."),
+                "intermediate_steps": serializable_steps
+            }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Ocorreu um erro ao processar sua solicitação: {str(e)}"})
 
@@ -126,7 +178,7 @@ async def get_file_list():
 async def read_file_content(path: str):
     """Lê o conteúdo de um arquivo específico no workspace."""
     content = read_file(path)
-    if content.startswith("Erro:"):
+    if "Erro:" in str(content):
         return JSONResponse(status_code=404, content={"detail": content})
     return {"content": content}
 
@@ -137,7 +189,7 @@ async def write_file_content(request: FileWriteRequest):
     Este endpoint chama a ferramenta 'apply_file_change' que efetivamente escreve no disco.
     """
     result = apply_file_change(request.path, request.content)
-    if result.startswith("Erro:"):
+    if "Erro:" in str(result):
         return JSONResponse(status_code=400, content={"detail": result})
     return {"message": result}
 

@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+langchain
+chromadb
+llama-cpp-python
+requests
+streamlit
+duckduckgo-search
+pywinpty
+python-multipart
+transformers
+datasets
+peft
+torch
+torchaudio
+torchvision

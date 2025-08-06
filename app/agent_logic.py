@@ -5,6 +5,7 @@ from langchain_community.llms import LlamaCpp
 from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferWindowMemory
+from langchain_core.messages import HumanMessage
 
 # Importar as ferramentas que definimos
 from app.tools.file_system_tool import propose_file_change, apply_file_change, list_files, read_file
@@ -16,10 +17,25 @@ def create_genesys_agent():
     Cria e configura o Agente Genesys com suas ferramentas, memória e lógica.
     """
     # --- Carregar Configurações do Modelo ---
-    model_filename = os.getenv("MODEL_GGUF_FILENAME", "Llama-3-70B-Instruct.Q2_K.gguf")
+    model_filename = os.getenv("MODEL_GGUF_FILENAME", "Llama-3-8B-Instruct-SP-32k-Q4_K_M.gguf")
     model_path = f"./models/{model_filename}"
-
-    callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
+    
+    # Carregar o projetor multimodal, se existir
+    multimodal_projector_filename = os.getenv("MULTIMODAL_PROJECTOR_FILENAME", "")
+    chat_handler = None
+    if multimodal_projector_filename:
+        from langchain_community.llms.llava_cpp import LlavaCpp
+        
+        llava_projector_path = f"./models/{multimodal_projector_filename}"
+        chat_handler = LlavaCpp(
+            model_path=model_path,
+            llava_projector_path=llava_projector_path,
+            n_gpu_layers=-1,
+            n_batch=512,
+            n_ctx=4096,
+            f16_kv=True,
+            verbose=True,
+        )
 
     llm = LlamaCpp(
         model_path=model_path,
@@ -27,7 +43,7 @@ def create_genesys_agent():
         n_batch=512,
         n_ctx=4096,
         f16_kv=True,
-        callback_manager=callback_manager,
+        callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
         verbose=True,
     )
 
@@ -86,4 +102,19 @@ def create_genesys_agent():
         return_intermediate_steps=True # ESSENCIAL para ver o "pensamento" do agente
     )
 
-    return agent_executor
+    # Retorna tanto o executor do agente quanto o handler de chat multimodal, se existir
+    return agent_executor, chat_handler
+
+def create_multimodal_message(prompt: str, image_bytes: bytes):
+    """Cria uma mensagem multimodal para o LLaVA."""
+    return [
+        HumanMessage(
+            content=[
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": f"data:image/jpeg;base64,{image_bytes.decode('utf-8')}",
+                },
+            ]
+        )
+    ]
