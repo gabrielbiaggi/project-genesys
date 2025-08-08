@@ -8,7 +8,7 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain_core.messages import HumanMessage
 
 # Importar as ferramentas que definimos
-from app.tools.file_system_tool import propose_file_change, apply_file_change, list_files, read_file
+from app.tools.file_system_tool import apply_file_change, list_files, read_file
 from app.tools.terminal_tool import execute_terminal_command
 from app.tools.web_search_tool import web_search
 
@@ -20,22 +20,27 @@ def create_genesys_agent():
     model_filename = os.getenv("MODEL_GGUF_FILENAME", "Llama-3-8B-Instruct-SP-32k-Q4_K_M.gguf")
     model_path = f"./models/{model_filename}"
     
-    # Carregar o projetor multimodal, se existir
+    # Carregar o projetor multimodal, se existir e o arquivo for encontrado
     multimodal_projector_filename = os.getenv("MULTIMODAL_PROJECTOR_FILENAME", "")
     chat_handler = None
-    if multimodal_projector_filename:
-        from langchain_community.llms.llava_cpp import LlavaCpp
-        
-        llava_projector_path = f"./models/{multimodal_projector_filename}"
-        chat_handler = LlavaCpp(
-            model_path=model_path,
-            llava_projector_path=llava_projector_path,
-            n_gpu_layers=-1,
-            n_batch=512,
-            n_ctx=4096,
-            f16_kv=True,
-            verbose=True,
-        )
+    llava_projector_path = f"./models/{multimodal_projector_filename}"
+    if multimodal_projector_filename and os.path.exists(llava_projector_path):
+        try:
+            from langchain_community.llms.llava_cpp import LlavaCpp
+            
+            chat_handler = LlavaCpp(
+                model_path=model_path,
+                llava_projector_path=llava_projector_path,
+                n_gpu_layers=-1,
+                n_batch=512,
+                n_ctx=4096,
+                f16_kv=True,
+                verbose=True,
+            )
+        except ImportError:
+            print("AVISO: Falha ao importar LlavaCpp. A funcionalidade multimodal estará desativada.")
+            print("Para ativar, instale as dependências corretas: pip install 'langchain-community[llava]'")
+            chat_handler = None
 
     llm = LlamaCpp(
         model_path=model_path,
@@ -48,8 +53,7 @@ def create_genesys_agent():
     )
 
     # --- Definir as Ferramentas Disponíveis ---
-    # Removido write_file, substituído por propose e apply
-    tools = [propose_file_change, apply_file_change, list_files, read_file, execute_terminal_command, web_search]
+    tools = [apply_file_change, list_files, read_file, execute_terminal_command, web_search]
 
     # --- Template de Prompt para o Agente ---
     template = """

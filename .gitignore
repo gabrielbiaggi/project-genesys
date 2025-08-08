@@ -79,9 +79,11 @@ target/
 .venv
 env/
 venv/
+venv-notebook/
 ENV/
 env.bak
 venv.bak
+ide-web/
 
 # mkdocs documentation
 /site

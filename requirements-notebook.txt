@@ -1,8 +1,7 @@
 # requirements-notebook.txt
-# Dependências mínimas para rodar o servidor FastAPI e a IDE Web sem o Agente de IA.
+# Dependências mínimas para rodar o servidor FastAPI em modo leve (sem carregar o agente de IA).
 
 fastapi
 uvicorn[standard]
 python-dotenv
-pywinpty
 python-multipart

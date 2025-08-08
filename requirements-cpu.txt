@@ -15,3 +15,5 @@ peft
 torch
 torchaudio
 torchvision
+autogen-agentchat
+tqdm

@@ -4,48 +4,40 @@ import os
 
 # --- Correção Crítica para o PYTHONPATH ---
 # Adiciona o diretório raiz do projeto ao sys.path.
-# Isso garante que as importações como 'from app.tools...' funcionem
-# de forma confiável, especialmente com o reloader do Uvicorn.
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 # --- Fim da Correção ---
 
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import json
 from pydantic import BaseModel
-from typing import List, Optional
-import pywinpty # Reativado para o modo servidor completo
-import asyncio
-import shutil
+from typing import Optional
 import base64
 
+from app.tools.download_tool import download_model_tool
+from app.tools.script_execution_tool import execute_python_script
+
 # --- Carregamento Condicional do Agente ---
-# Isso permite que o servidor inicie mesmo sem as dependências pesadas de IA.
 agent_executor = None
 multimodal_chat_handler = None
 create_multimodal_message = None
 
+# Tenta carregar o agente de IA. Se falhar, o servidor continuará em modo de gerenciamento.
 try:
-    # Tenta importar as dependências pesadas
     from app.agent_logic import create_genesys_agent, create_multimodal_message
-    from app.tools.file_system_tool import list_files, read_file, apply_file_change, SAFE_WORKSPACE
     agent_executor, multimodal_chat_handler = create_genesys_agent()
     print("INFO: Agente Gênesis e ferramentas carregados com sucesso.")
-except (ImportError, Exception) as e:
-    print(f"AVISO: Dependências de IA não encontradas ou falha ao carregar o agente ({e}). Servidor rodando em modo de gerenciamento de arquivos apenas.")
-    # Se a importação falhar, defina as ferramentas de arquivo que não dependem de IA
-    from app.tools.file_system_tool_standalone import list_files, read_file, apply_file_change, SAFE_WORKSPACE
-
+except Exception as e:
+    print(f"AVISO: Falha ao carregar o agente de IA: {e}")
+    print("AVISO: O servidor continuará em modo de gerenciamento sem a capacidade de chat.")
+    agent_executor = None
+    multimodal_chat_handler = None
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv(dotenv_path='.env')
-
-# --- Seção de Criação do Agente ---
-# Movido para dentro do bloco try/except acima
 
 # --- Configuração do Logging de Interações para Fine-Tuning ---
 LOGS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs')
@@ -55,11 +47,9 @@ INTERACTION_LOG_FILE = os.path.join(LOGS_DIR, 'interaction_logs.jsonl')
 def log_interaction(prompt: str, response: dict):
     """Salva a interação completa (prompt, resposta, passos) no arquivo de log."""
     with open(INTERACTION_LOG_FILE, 'a', encoding='utf-8') as f:
-        # Prepara os intermediate_steps para serialização, convertendo objetos
         serializable_steps = []
-        if "intermediate_steps" in response:
+        if "intermediate_steps" in response and response["intermediate_steps"] is not None:
             for step in response["intermediate_steps"]:
-                # step é uma tupla (AgentAction, observation)
                 action, observation = step
                 serializable_steps.append({
                     "tool": action.tool,
@@ -73,62 +63,63 @@ def log_interaction(prompt: str, response: dict):
             "final_answer": response.get("output", ""),
             "intermediate_steps": serializable_steps
         }
-        f.write(json.dumps(log_entry, ensure_ascii=False) + '\\n')
+        f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
 
 # --- Modelos de Dados Pydantic ---
 class ChatRequest(BaseModel):
     prompt: str
     image: str | None = None # Imagem opcional, em base64
 
-class FilePathRequest(BaseModel):
-    path: str
-
-class FileWriteRequest(BaseModel):
-    path: str
-    content: str
+class ScriptExecutionRequest(BaseModel):
+    script_path: str
 
 # Instanciar a aplicação FastAPI
 app = FastAPI(
-    title="Projeto Gênesys",
-    description="A infraestrutura para um agente de IA soberano, com uma IDE web integrada.",
-    version="0.2.0",
+    title="API do Agente Gênesys",
+    description="Uma API minimalista para servir um agente de IA soberano para orquestradores como o AutoGen.",
+    version="1.0.0",
 )
 
-# --- Configuração do CORS ---
-# Permite que o frontend (rodando em outra porta) se comunique com a API.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Em produção, restrinja para o domínio do seu frontend
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.on_event("startup")
+async def on_startup():
+    """
+    Evento de inicialização para acionar tarefas em segundo plano, como o download do modelo.
+    """
+    print("INFO: Servidor iniciando. Verificando a existência dos modelos...")
+    # Em um cenário de produção real, isso seria melhor tratado com BackgroundTasks
+    # para não bloquear a inicialização, mas para o setup inicial, é suficiente.
+    try:
+        result = download_model_tool.invoke({})
+        print(f"INFO: Verificação de download do modelo concluída. Detalhes: {result}")
+    except Exception as e:
+        print(f"ERRO: Falha ao executar a ferramenta de download na inicialização: {e}")
 
 # --- Endpoints da API ---
 
 @app.get("/", tags=["Status"])
 async def root():
     """Endpoint principal para verificar o status da API."""
-    return {"message": f"Bem-vindo ao projeto-genesys. Servidor operacional. Modelo '{os.getenv('MODEL_GGUF_FILENAME')}' aguardando ordens."}
+    agent_status = "operacional" if agent_executor else "não carregado"
+    return {"message": f"Bem-vindo à API do Gênesys. Servidor operacional. Agente: {agent_status}. Modelo: '{os.getenv('MODEL_GGUF_FILENAME')}'."}
 
 @app.post("/chat", tags=["Interação com Agente"])
 async def chat_with_agent(request: ChatRequest):
     """
-    Endpoint para interagir com o Agente Gênesis.
-    Recebe um prompt e, opcionalmente, uma imagem.
-    Retorna a resposta do agente e loga a interação.
+    Endpoint principal para interagir com o Agente Gênesis.
+    Recebe um prompt e, opcionalmente, uma imagem em base64.
+    Retorna a resposta do agente e loga a interação para fine-tuning.
     """
     if not agent_executor:
         return JSONResponse(
             status_code=503, # Service Unavailable
-            content={"error": "O Agente de IA não está disponível ou não foi carregado. O servidor está em modo de desenvolvimento de UI."}
+            content={"error": "O Agente de IA não está disponível. O servidor pode estar em modo de desenvolvimento ou falhou ao carregar o modelo."}
         )
         
     try:
         # --- Lógica de Roteamento: Multimodal vs. Ferramentas ---
         if request.image and multimodal_chat_handler and create_multimodal_message:
             # Rota Multimodal: Lida com texto e imagem
-            print("Executando rota de chat multimodal (LLaVA)...")
+            print("INFO: Executando rota de chat multimodal (LLaVA)...")
             image_bytes = base64.b64decode(request.image)
             message = create_multimodal_message(request.prompt, image_bytes)
             
@@ -136,13 +127,13 @@ async def chat_with_agent(request: ChatRequest):
             result = multimodal_chat_handler.invoke(message)
             
             # Log simples para a interação multimodal
-            log_interaction(request.prompt, {"output": result})
+            log_interaction(request.prompt, {"output": result, "intermediate_steps": []})
             
             return {"response": result, "intermediate_steps": []}
 
         else:
             # Rota Padrão: Agente com ferramentas (ReAct)
-            print("Executando rota de agente com ferramentas (ReAct)...")
+            print("INFO: Executando rota de agente com ferramentas (ReAct)...")
             response = agent_executor.invoke({"input": request.prompt})
             
             # Loga a interação completa para futuro fine-tuning
@@ -150,7 +141,7 @@ async def chat_with_agent(request: ChatRequest):
 
             # Prepara os intermediate_steps para serem enviados como JSON
             serializable_steps = []
-            if "intermediate_steps" in response:
+            if "intermediate_steps" in response and response["intermediate_steps"] is not None:
                 for step in response["intermediate_steps"]:
                     action, observation = step
                     serializable_steps.append({
@@ -165,103 +156,31 @@ async def chat_with_agent(request: ChatRequest):
                 "intermediate_steps": serializable_steps
             }
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"Ocorreu um erro ao processar sua solicitação: {str(e)}"})
+        print(f"ERRO: Ocorreu um erro ao processar a solicitação: {e}")
+        return JSONResponse(status_code=500, content={"error": f"Ocorreu um erro interno no servidor: {str(e)}"})
 
-# --- Endpoints para Gerenciamento de Arquivos da IDE ---
-
-@app.get("/files/list", tags=["Gerenciamento de Arquivos"])
-async def get_file_list():
-    """Lista todos os arquivos e diretórios no workspace seguro."""
-    return {"files": list_files("")}
-
-@app.get("/files/read", tags=["Gerenciamento de Arquivos"])
-async def read_file_content(path: str):
-    """Lê o conteúdo de um arquivo específico no workspace."""
-    content = read_file(path)
-    if "Erro:" in str(content):
-        return JSONResponse(status_code=404, content={"detail": content})
-    return {"content": content}
-
-@app.post("/files/write", tags=["Gerenciamento de Arquivos"])
-async def write_file_content(request: FileWriteRequest):
+@app.post("/download-model", tags=["Gerenciamento de Modelo"])
+async def download_model_endpoint():
     """
-    Escreve (aplica) o conteúdo em um arquivo. 
-    Este endpoint chama a ferramenta 'apply_file_change' que efetivamente escreve no disco.
-    """
-    result = apply_file_change(request.path, request.content)
-    if "Erro:" in str(result):
-        return JSONResponse(status_code=400, content={"detail": result})
-    return {"message": result}
-
-@app.post("/files/upload", tags=["Gerenciamento de Arquivos"])
-async def upload_file(file: UploadFile = File(...)):
-    """
-    Faz o upload de um arquivo para o diretório raiz do workspace seguro.
-    Se um arquivo com o mesmo nome existir, ele será sobrescrito.
+    Endpoint para acionar o download do modelo de IA e do projetor multimodal.
+    A execução é feita em background para não bloquear a API.
     """
     try:
-        # Caminho seguro para salvar o arquivo
-        file_path = os.path.join(SAFE_WORKSPACE, file.filename)
-        
-        # Validação para garantir que o caminho final ainda está dentro do SAFE_WORKSPACE
-        if not os.path.abspath(file_path).startswith(os.path.abspath(SAFE_WORKSPACE)):
-            return JSONResponse(status_code=400, content={"detail": "Nome de arquivo inválido."})
-
-        # Escreve o arquivo no disco
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        return {"filename": file.filename, "message": "Arquivo enviado com sucesso."}
+        # A ferramenta é síncrona, mas a chamamos de um endpoint assíncrono.
+        # Para um download longo, o ideal seria rodar em um processo separado (ex: com Celery ou BackgroundTasks do FastAPI).
+        # Para simplificar, faremos a chamada direta, mas cientes de que pode bloquear por um tempo.
+        result = download_model_tool.invoke({})
+        return {"status": "Download iniciado/verificado.", "details": result}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"detail": f"Não foi possível fazer o upload do arquivo: {e}"})
-    finally:
-        await file.close()
+        return JSONResponse(status_code=500, content={"error": f"Falha ao acionar a ferramenta de download: {str(e)}"})
 
-# --- Endpoint do Terminal via WebSocket ---
-
-@app.websocket("/ws/terminal")
-async def websocket_terminal(websocket: WebSocket):
-    """Endpoint WebSocket para o terminal interativo."""
-    await websocket.accept()
-    
-    # Inicia um processo de shell (PowerShell no Windows)
-    # pywinpty é usado para criar um pseudo-terminal no Windows
+@app.post("/run-script", tags=["Execução de Scripts"])
+async def run_script_endpoint(request: ScriptExecutionRequest):
+    """
+    Endpoint para executar um script Python especificado dentro do ambiente do servidor.
+    """
     try:
-        shell_process = pywinpty.PtyProcess.spawn(
-            ['powershell.exe'],
-            cwd=SAFE_WORKSPACE,
-            env=os.environ.copy()
-        )
-
-        async def read_from_shell():
-            """Lê a saída do shell e envia para o frontend."""
-            while shell_process.isalive():
-                try:
-                    output = shell_process.read(1024, timeout=0.01)
-                    if output:
-                        await websocket.send_text(output)
-                except pywinpty.errors.PtyProcessError:
-                    break # Processo provavelmente terminou
-                await asyncio.sleep(0.01) # Evita busy-waiting
-
-        # Cria uma task para ler a saída do shell continuamente
-        read_task = asyncio.create_task(read_from_shell())
-
-        try:
-            while True:
-                # Recebe dados do frontend (terminal web)
-                data = await websocket.receive_text()
-                shell_process.write(data)
-        except WebSocketDisconnect:
-            print("Cliente desconectado do terminal.")
-        finally:
-            read_task.cancel() # Para a task de leitura
-            if shell_process.isalive():
-                shell_process.close() # Encerra o processo do shell
-
+        result = execute_python_script.invoke({"script_path": request.script_path})
+        return {"status": "Execução do script solicitada.", "details": result}
     except Exception as e:
-        error_message = f"Erro ao iniciar o terminal: {e}"
-        print(error_message)
-        await websocket.send_text(f"\\r\\n{error_message}\\r\\n")
-    finally:
-        await websocket.close()
+        return JSONResponse(status_code=500, content={"error": f"Falha ao acionar a ferramenta de execução de script: {str(e)}"})

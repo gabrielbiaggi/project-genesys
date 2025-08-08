@@ -2,12 +2,11 @@ fastapi
 uvicorn[standard]
 python-dotenv
 langchain
+langchain-community
 chromadb
 llama-cpp-python
 requests
-streamlit
 duckduckgo-search
-pywinpty
 python-multipart
 
 # Dependências para Fine-Tuning (Fase 2)
@@ -17,3 +16,8 @@ peft
 bitsandbytes
 trl
 accelerate
+
+# Orquestração multiagente
+autogen-agentchat
+tqdm
+huggingface_hub

@@ -4,8 +4,9 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-# Carregar variáveis de ambiente de um arquivo .env se ele existir
-load_dotenv(dotenv_path='../.env')
+# Constrói um caminho absoluto para o arquivo .env na raiz do projeto
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+load_dotenv(dotenv_path=os.path.join(project_root, '.env'))
 
 # --- CONFIGURAÇÃO DO MODELO ---
 # Altere estes valores para baixar um modelo diferente.
@@ -39,12 +40,20 @@ def download_file(filename: str, repo_id: str):
         print(f"O arquivo '{filename}' já existe em '{MODELS_DIR}'. Download pulado.")
         return
 
+    # Prepara o cabeçalho de autenticação
+    hf_token = os.getenv("HUGGING_FACE_HUB_TOKEN")
+    headers = {}
+    if hf_token:
+        headers["Authorization"] = f"Bearer {hf_token}"
+    else:
+        print(f"AVISO: HUGGING_FACE_HUB_TOKEN não encontrado. O download pode falhar se o repositório for privado.")
+
     print(f"Iniciando o download do arquivo: {filename}")
     print(f"Do repositório: {repo_id}")
     print(f"Salvando em: {file_path}")
 
     try:
-        with requests.get(download_url, stream=True) as r:
+        with requests.get(download_url, headers=headers, stream=True) as r:
             r.raise_for_status()
             total_size_in_bytes = int(r.headers.get('content-length', 0))
             block_size = 1024 * 1024  # 1 MB
