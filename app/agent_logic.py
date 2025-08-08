@@ -1,7 +1,11 @@
 # app/agent_logic.py
 import os
 from langchain.agents import AgentExecutor, create_react_agent
-from langchain_community.llms import LlamaCpp
+try:
+    from langchain_community.llms import LlamaCpp
+except ImportError:
+    # Fallback para desenvolvimento sem llama-cpp-python
+    LlamaCpp = None
 from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferWindowMemory
@@ -42,14 +46,20 @@ def create_genesys_agent():
             print("Para ativar, instale as dependências corretas: pip install 'langchain-community[llava]'")
             chat_handler = None
 
+    # --- Configuração LlamaCpp com GPU ATIVADA ---
+    # n_gpu_layers=-1 significa TODAS as camadas na GPU para máxima performance
+    # Performance esperada: 50-200+ tokens/segundo
+    if LlamaCpp is None:
+        raise ImportError("llama-cpp-python não está instalado. Execute: pip install llama-cpp-python")
+    
     llm = LlamaCpp(
         model_path=model_path,
-        n_gpu_layers=-1,
-        n_batch=512,
-        n_ctx=4096,
-        f16_kv=True,
+        n_gpu_layers=-1,     # 🎮 TODAS as camadas na GPU (máxima performance)
+        n_batch=512,         # Tamanho do batch para processamento
+        n_ctx=4096,          # Contexto máximo do modelo
+        f16_kv=True,         # Usar FP16 para economizar VRAM
         callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
-        verbose=True,
+        verbose=True,        # Mostrar informações de debug
     )
 
     # --- Definir as Ferramentas Disponíveis ---

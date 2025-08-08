@@ -8,6 +8,8 @@ llama-cpp-python
 requests
 duckduckgo-search
 python-multipart
+psutil
+pydantic
 
 # Dependências para Fine-Tuning (Fase 2)
 transformers
@@ -21,3 +23,8 @@ accelerate
 autogen-agentchat
 tqdm
 huggingface_hub
+
+# Para desenvolvimento e debug
+pytest
+black
+isort
