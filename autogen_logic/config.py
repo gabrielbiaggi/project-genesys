@@ -5,12 +5,12 @@ from dotenv import load_dotenv
 def get_config_list():
     """
     Carrega a configuração dos modelos LLM a partir de variáveis de ambiente.
-    Isso permite configurar múltiplos modelos, como o Gênesis local e o Gemini da Google.
+    Isso permite configurar múltiplos modelos, como o Genesys local e o Gemini da Google.
     """
     # Carrega as variáveis do arquivo .env na raiz do projeto
     load_dotenv(dotenv_path='../.env')
 
-    # Configuração para o modelo local (seu Gênesis)
+    # Configuração para o modelo local (seu Genesys)
     # Supondo que você o exponha através de uma API compatível com a OpenAI, como o LM Studio ou Oobabooga
     local_model_endpoint = os.getenv("LOCAL_MODEL_ENDPOINT", "http://localhost:11434/v1")
     

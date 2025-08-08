@@ -18,9 +18,9 @@ from dotenv import load_dotenv
 
 def fine_tune_model():
     """
-    Executa o processo de fine-tuning do modelo Gênesis usando os dados de interação logados.
+    Executa o processo de fine-tuning do modelo Genesys usando os dados de interação logados.
     """
-    print("--- Iniciando o Processo de Fine-Tuning do Agente Gênesis ---")
+    print("--- Iniciando o Processo de Fine-Tuning do Agente Genesys ---")
 
     # 1. Carregar Configurações do Ambiente
     load_dotenv(dotenv_path='../.env')

@@ -1,5 +1,5 @@
 # scripts/setup_windows.ps1
-# Orquestrador de instalação para o ambiente do Projeto Gênesis no Windows.
+# Orquestrador de instalação para o ambiente do Projeto Genesys no Windows.
 # Este script automatiza a criação do ambiente virtual e a instalação de dependências.
 
 # --- Verificação de Privilégios de Administrador ---
@@ -58,6 +58,6 @@ try {
 }
 
 Write-Host "---------------------------------------------------------------"
-Write-Host "Configuração do Projeto Gênesis concluída com sucesso!" -ForegroundColor Green
+Write-Host "Configuração do Projeto Genesys concluída com sucesso!" -ForegroundColor Green
 Write-Host "O próximo passo é baixar os modelos de IA executando o script 'download_model.py'." -ForegroundColor White
 Read-Host -Prompt "Pressione Enter para sair"

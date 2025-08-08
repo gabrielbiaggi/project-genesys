@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 def test_load():
     """
-    Tenta carregar o agente Gênesis para diagnosticar problemas de inicialização.
+    Tenta carregar o agente Genesys para diagnosticar problemas de inicialização.
     """
     print("--- INICIANDO TESTE DE CARGA DO MODELO ---")
     
@@ -39,7 +39,7 @@ def test_load():
         agent, handler = create_genesys_agent()
         
         if agent is not None:
-            print("SUCESSO: Agente Gênesis carregado com sucesso!")
+            print("SUCESSO: Agente Genesys carregado com sucesso!")
         else:
             print("FALHA: A função create_genesys_agent() retornou None.")
 

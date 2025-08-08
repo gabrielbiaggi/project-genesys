@@ -4,7 +4,7 @@
 # --- Parâmetros ---
 $CloudflaredURL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
 $NssmURL = "https://nssm.cc/release/nssm-2.24.zip"
-$InstallDir = "C:\ProgramData\GênesisService"
+$InstallDir = "C:\ProgramData\GenesysService"
 $ServiceName = "GenesysCloudflaredTunnel"
 $CloudflareToken = "eyJhIjoiN2YxMmMxY2Y4MjkwM2VhM2IwMzUxN2Y4MzQyOTUxNjkiLCJ0IjoiY2M2MDQ0OTYtZDBhMy00MWIxLWE5YTMtODI5OTI2NjY4YjE0IiwicyI6Ik9UVTJPR1ZtTWpVdE16SmxZaTAwTVdaa0xXSXlNRFF0T0RjNVpHTTFOamt4TkRNNCJ9" # IMPORTANTE: Substitua este valor pelo seu token do Cloudflare.
 

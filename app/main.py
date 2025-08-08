@@ -16,6 +16,7 @@ import json
 from pydantic import BaseModel
 from typing import Optional
 import base64
+import time
 
 from app.tools.download_tool import download_model_tool
 from app.tools.script_execution_tool import execute_python_script
@@ -184,3 +185,62 @@ async def run_script_endpoint(request: ScriptExecutionRequest):
         return {"status": "Execução do script solicitada.", "details": result}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Falha ao acionar a ferramenta de execução de script: {str(e)}"})
+
+# Modelo para compatibilidade com Continue
+class ContinueRequest(BaseModel):
+    messages: list
+    model: str = "genesys-local"
+
+@app.post("/v1/chat/completions", tags=["Compatibilidade Continue"])
+async def continue_chat_completions(request: ContinueRequest):
+    """
+    Endpoint compatível com Continue/OpenAI para integração direta no Cursor.
+    """
+    if not agent_executor:
+        return JSONResponse(
+            status_code=503,
+            content={"error": {"message": "O Agente de IA não está disponível. O servidor pode estar em modo de desenvolvimento.", "type": "service_unavailable"}}
+        )
+    
+    try:
+        # Extrair última mensagem do usuário
+        last_message = ""
+        for msg in reversed(request.messages):
+            if msg.get("role") == "user":
+                last_message = msg.get("content", "")
+                break
+        
+        if not last_message:
+            return JSONResponse(status_code=400, content={"error": {"message": "Nenhuma mensagem do usuário encontrada", "type": "invalid_request"}})
+        
+        # Processar com o agente
+        response = agent_executor.invoke({"input": last_message})
+        
+        # Formatar resposta no padrão OpenAI/Continue
+        return {
+            "id": "chatcmpl-genesys",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": request.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": response.get("output", "Resposta não disponível.")
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {
+                "prompt_tokens": len(last_message.split()),
+                "completion_tokens": len(response.get("output", "").split()),
+                "total_tokens": len(last_message.split()) + len(response.get("output", "").split())
+            }
+        }
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, 
+            content={"error": {"message": f"Erro interno do servidor: {str(e)}", "type": "internal_error"}}
+        )

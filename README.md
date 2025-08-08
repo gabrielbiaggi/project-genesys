@@ -7,11 +7,11 @@
 ![70B Model](https://img.shields.io/badge/🧠-70B_MODEL-blue?style=for-the-badge)
 ![Status](https://img.shields.io/badge/🚀-READY-success?style=for-the-badge)
 
-**🎯 Um agente de IA local de 70B rodando no seu próprio hardware, com GPU obrigatória para máxima performance**
+**🎯 Um agente de IA local de 70B rodando no seu próprio hardware, com integração completa ao Cursor IDE**
 
-[🚀 Início Rápido](#-início-rápido-comando-único) •
-[🎮 GPU Setup](#-gpu-obrigatória-configuração) •
-[📚 Documentação](#-documentação-completa) •
+[🚀 Início Rápido](#-início-rápido) •
+[🎮 GPU Setup](#-gpu-obrigatória) •
+[💻 Integração Cursor](#-integração-com-cursor) •
 [🔧 Problemas](#-solução-de-problemas)
 
 </div>
@@ -29,6 +29,7 @@ O **Genesys** é uma solução completa de IA que roda **100% localmente** no se
 - 🔧 **Ferramentas Integradas** - Sistema de arquivos, terminal, busca web
 - 🌐 **API RESTful** - Interface FastAPI para integração total
 - 👥 **Multi-Agente** - Orquestração via AutoGen
+- 💻 **Extensão Cursor** - Integração nativa com o editor
 - 🔒 **Privacidade Total** - Dados nunca saem do seu servidor
 - 📈 **Aprendizado Contínuo** - Logs para fine-tuning personalizado
 
@@ -44,17 +45,16 @@ O **Genesys** é uma solução completa de IA que roda **100% localmente** no se
 
 ---
 
-## 🚀 INÍCIO RÁPIDO (COMANDO ÚNICO)
+## 🚀 INÍCIO RÁPIDO
 
 ### ⚡ **COMANDO PRINCIPAL - USE SEMPRE:**
 
 ```powershell
 # ◀️ ESTE É SEU COMANDO PRINCIPAL ▶️
-.\scripts\start_simple.ps1
+.\start_genesys.ps1
 ```
 
 **🎯 Este comando faz TUDO:**
-
 - ✅ Verifica dependências automaticamente
 - ✅ Inicia IA com GPU ativada (`n_gpu_layers=-1`)
 - ✅ Performance máxima garantida (50-200+ tokens/seg)
@@ -85,7 +85,7 @@ python testar_gpu_real.py  # Deve mostrar "🎉 STATUS: GPU ATIVADA!"
 
 ---
 
-## 🎮 GPU OBRIGATÓRIA (CONFIGURAÇÃO)
+## 🎮 GPU OBRIGATÓRIA
 
 ### 🚨 **ATENÇÃO: GPU É OBRIGATÓRIA!**
 
@@ -97,7 +97,6 @@ python testar_gpu_real.py  # Deve mostrar "🎉 STATUS: GPU ATIVADA!"
 ### 📥 **INSTALAÇÃO CUDA (OBRIGATÓRIA):**
 
 #### **1. Download CUDA Toolkit**
-
 ```
 🔗 Link: https://developer.nvidia.com/cuda-downloads
 📋 Escolha: Windows > x86_64 > 11 > exe (local)
@@ -106,7 +105,6 @@ python testar_gpu_real.py  # Deve mostrar "🎉 STATUS: GPU ATIVADA!"
 ```
 
 #### **2. Instalação Automática**
-
 ```
 ✅ Execute o instalador baixado
 ✅ Aceite configurações padrão
@@ -115,25 +113,9 @@ python testar_gpu_real.py  # Deve mostrar "🎉 STATUS: GPU ATIVADA!"
 ```
 
 #### **3. Verificação**
-
 ```powershell
 nvcc --version
 # Deve mostrar: "Cuda compilation tools, release 12.x"
-```
-
-### ✅ **CONFIGURAÇÃO GPU NO CÓDIGO:**
-
-**Arquivo:** `app/agent_logic.py` (linha 57) - **JÁ CONFIGURADO!**
-
-```python
-llm = LlamaCpp(
-    model_path=model_path,
-    n_gpu_layers=-1,     # 🎮 TODAS as camadas na GPU (máxima performance)
-    n_batch=512,         # Tamanho do batch para processamento
-    n_ctx=4096,          # Contexto máximo do modelo
-    f16_kv=True,         # Usar FP16 para economizar VRAM
-    verbose=True,        # Mostrar informações de debug
-)
 ```
 
 ### 🧪 **TESTE DEFINITIVO DE GPU:**
@@ -143,7 +125,6 @@ python testar_gpu_real.py
 ```
 
 **Resultado esperado:**
-
 ```
 🎉 STATUS: GPU ATIVADA!
 ✅ llama-cpp-python COM suporte GPU!
@@ -152,52 +133,11 @@ python testar_gpu_real.py
 
 ---
 
-## 🏗️ ARQUITETURA DO SISTEMA
-
-```mermaid
-graph TD
-    A[👤 Cliente/Notebook] -->|HTTPS| B[☁️ Cloudflare Tunnel]
-    B --> C[🖥️ Servidor Principal]
-    C --> D[🚀 FastAPI Backend]
-    D --> E[🤖 Agente Genesys]
-    E --> F[🧠 Modelo Llama 70B]
-    E --> G[🛠️ Ferramentas]
-    G --> H[📁 Sistema de Arquivos]
-    G --> I[💻 Terminal]
-    G --> J[🌐 Busca Web]
-    D --> K[👥 AutoGen Orchestrator]
-    K --> L[🤝 Multi-Agentes]
-    F -.->|GPU| M[🎮 CUDA Acceleration]
-```
-
-### 🧩 **COMPONENTES PRINCIPAIS:**
-
-1. **🚀 Backend (FastAPI)** - `app/main.py`
-
-   - Carrega modelo de 70B na GPU
-   - Expõe API RESTful completa
-   - Registra interações para fine-tuning
-
-2. **👥 Orquestrador (AutoGen)** - `scripts/autogen_orchestrator.py`
-
-   - Coordena múltiplos agentes
-   - Manipula workspace em tempo real
-
-3. **🛠️ Ferramentas do Agente**
-   - Sistema de arquivos seguro
-   - Execução de comandos terminal
-   - Busca web em tempo real
-
----
-
-## 📚 DOCUMENTAÇÃO COMPLETA
+## 📚 INSTALAÇÃO COMPLETA
 
 ### ⚙️ **PRÉ-REQUISITOS DO SISTEMA**
 
 #### **🛠️ 1. Ferramentas de Compilação C++**
-
-**CRÍTICO:** `llama-cpp-python` precisa ser compilado no Windows.
-
 ```powershell
 # Download Visual Studio Build Tools
 # https://visualstudio.microsoft.com/pt-br/downloads/
@@ -206,17 +146,14 @@ graph TD
 ```
 
 #### **🐧 2. WSL2 (Windows Subsystem for Linux)**
-
 ```powershell
 # Execute como Administrador
 wsl --install
 # ✅ Reinicie o computador
 # ✅ Configure usuário/senha no Ubuntu
-# ✅ Guarde essas credenciais
 ```
 
 #### **🎮 3. Drivers NVIDIA + CUDA**
-
 ```bash
 # 1. Drivers NVIDIA Game Ready/Studio
 # https://www.nvidia.com.br/Download/index.aspx?lang=br
@@ -234,12 +171,11 @@ sudo apt-get -y install cuda-toolkit-12-4
 nvidia-smi  # Deve mostrar sua GPU
 ```
 
-### 🚀 **INSTALAÇÃO COMPLETA**
+### 🚀 **INSTALAÇÃO AUTOMATIZADA**
 
 #### **📥 1. Obter o Código**
-
 ```powershell
-cd C:\DEVBill\Projetos
+cd C:\DEV\
 git clone https://github.com/SEU_USUARIO/Genesys.git
 cd Genesys
 ```
@@ -268,26 +204,22 @@ LOCAL_MODEL_ENDPOINT="http://localhost:8002/v1"
 ```
 
 **⚠️ IMPORTANTE:** Substitua pelos seus tokens reais:
-
 - [Hugging Face Token](https://huggingface.co/settings/tokens) (permissão de leitura)
 - [Cloudflare Tunnel Token](https://one.dash.cloudflare.com/) (Zero Trust)
 
 #### **🔧 3. Instalação Automatizada**
-
 ```powershell
 # Execute como Administrador
 .\scripts\setup_windows.ps1
 ```
 
 **Este script faz:**
-
 - ✅ Cria ambiente virtual Python
 - ✅ Instala todas as dependências
 - ✅ Configura CUDA automaticamente
 - ✅ Prepara ambiente para execução
 
 #### **📥 4. Download do Modelo (42GB)**
-
 ```powershell
 # Ative o ambiente virtual
 .\venv\Scripts\Activate.ps1
@@ -300,17 +232,137 @@ python .\scripts\download_model.py
 
 ---
 
+## 💻 INTEGRAÇÃO COM CURSOR
+
+### 🎯 **OBJETIVO**
+Integrar o Genesys diretamente no editor Cursor como sua IA pessoal, com funcionalidades completas de chat, análise de código, revisão e geração.
+
+### 🚀 **INSTALAÇÃO DA EXTENSÃO**
+
+#### **Método Rápido (Recomendado):**
+```powershell
+# Execute no diretório do projeto
+.\instalar_extensao_cursor.ps1
+```
+
+### 🔄 **CONFIGURAÇÃO CONTINUE (ALTERNATIVA SIMPLES)**
+
+#### **Para Acesso Remoto (Notebook/Viagem):**
+```powershell
+# Configure Continue para usar Cloudflare
+.\configurar_continue.ps1 -Mode remoto
+```
+
+#### **Para Acesso Local (Mesmo PC):**
+```powershell
+# Configure Continue para servidor local
+.\configurar_continue.ps1 -Mode local
+```
+
+#### **Método Manual:**
+```powershell
+# Copiar extensão
+cp -r cursor-genesys-extension ~/.cursor/extensions/genesys-ai-assistant
+cd ~/.cursor/extensions/genesys-ai-assistant
+npm install && npm run compile
+```
+
+#### **Ativar no Cursor:**
+1. **Reinicie o Cursor**
+2. **Recarregar extensões**: `Ctrl+Shift+P` → "Developer: Reload Window"
+3. **Verificar instalação**: Procure o ícone 🤖 na barra inferior
+4. **Primeiro chat**: Pressione `Ctrl+Shift+G`
+
+### ✨ **FUNCIONALIDADES DA EXTENSÃO**
+
+#### **💬 Chat Interativo**
+- **Abrir chat**: `Ctrl+Shift+G` ou clique no ícone 🤖
+- **Contexto automático**: Inclui arquivo atual, linguagem e código ao redor
+- **Histórico persistente**: Mantém conversas anteriores
+- **Interface integrada**: Painel lateral no Explorer
+
+#### **🧠 Análise de Código**
+- **Explicar código**: `Ctrl+Shift+E` (com código selecionado)
+- **Revisar código**: Clique direito → "🔍 Revisar Código"
+- **Otimizar código**: Clique direito → "🚀 Otimizar Código"
+- **Gerar código**: `Ctrl+Shift+P` → "Genesys: Gerar Código"
+
+#### **⚡ Comandos Rápidos**
+
+| Comando | Atalho | Função |
+|---------|---------|---------|
+| `genesys.openChat` | `Ctrl+Shift+G` | Abrir chat |
+| `genesys.explainCode` | `Ctrl+Shift+E` | Explicar código |
+| `genesys.reviewCode` | Menu contexto | Revisar código |
+| `genesys.optimizeCode` | Menu contexto | Otimizar código |
+| `genesys.generateCode` | Command Palette | Gerar código |
+
+#### **🔧 Status e Monitoramento**
+
+**Indicadores na barra inferior:**
+- **🤖 Genesys ✅**: Conectado e funcionando
+- **🤖 Genesys ❌**: Desconectado
+- **🤖 Genesys ⚠️**: Erro de conexão
+
+**Painel de status (Explorer → "💬 Genesys AI"):**
+- Conectividade em tempo real
+- URL do servidor
+- Timeout configurado
+- Status do agente (Ativo/Desenvolvimento)
+
+### ⚙️ **CONFIGURAÇÕES**
+
+**Configurações disponíveis:**
+```json
+{
+  "genesys.serverUrl": "https://genesys.webcreations.com.br",
+  "genesys.timeout": 30,
+  "genesys.autoExplain": false,
+  "genesys.includeContext": true
+}
+```
+
+**Como configurar:**
+1. **Via UI**: `Ctrl+,` → Busque "Genesys"
+2. **Via JSON**: Adicione ao `settings.json`
+
+### 🔄 **ALTERNATIVAS DE INTEGRAÇÃO**
+
+#### **Opção A: Extensão Continue**
+1. Instale "Continue" no Cursor
+2. Configure modelo customizado:
+   ```json
+   {
+     "models": [
+       {
+         "title": "Genesys Local",
+         "provider": "openai",
+         "model": "genesys-local",
+         "apiBase": "https://genesys.webcreations.com.br",
+         "apiKey": "dummy-key"
+       }
+     ]
+   }
+   ```
+
+#### **Opção B: Extensão CodeGPT**
+1. Instale "CodeGPT"
+2. Configure API custom:
+   - URL: `https://genesys.webcreations.com.br/chat`
+   - Headers: `Content-Type: application/json`
+
+---
+
 ## ▶️ EXECUÇÃO DO SISTEMA
 
 ### 🎯 **EXECUÇÃO PADRÃO (RECOMENDADA)**
 
 ```powershell
 # ◀️ COMANDO PRINCIPAL - USE SEMPRE ▶️
-.\scripts\start_simple.ps1
+.\start_genesys.ps1
 ```
 
 **🎮 Recursos Automáticos:**
-
 - ✅ Verificação de dependências
 - ✅ GPU ativada (`n_gpu_layers=-1`)
 - ✅ Performance máxima (50-200+ tokens/seg)
@@ -325,7 +377,6 @@ python .\scripts\download_model.py
 ```
 
 **Recursos Avançados:**
-
 - ✅ Execução em segundo plano
 - ✅ Logs salvos em arquivo
 - ✅ Verificações automáticas
@@ -334,14 +385,12 @@ python .\scripts\download_model.py
 ### 🔧 **EXECUÇÃO MANUAL (DEBUG)**
 
 **Terminal 1 - Backend:**
-
 ```powershell
 .\venv\Scripts\Activate.ps1
 uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
 ```
 
 **Terminal 2 - Orquestrador:**
-
 ```powershell
 .\venv\Scripts\Activate.ps1
 python .\scripts\autogen_orchestrator.py
@@ -351,49 +400,33 @@ python .\scripts\autogen_orchestrator.py
 
 ## 🧪 TESTES E VALIDAÇÃO
 
-### 🔬 **TESTE LOCAL RÁPIDO**
+### 🔬 **TESTE COMPLETO DO SISTEMA**
 
 ```powershell
-# Status do servidor
-curl http://localhost:8002/
+# Teste completo (remoto + local + GPU)
+python testar_genesys_completo.py --all
 
-# Teste de chat
-curl -X POST http://localhost:8002/chat -H "Content-Type: application/json" -d '{"prompt": "Olá, como você está?"}'
+# Teste apenas remoto (Cloudflare)
+python testar_genesys_completo.py --remoto
 
-# Verificar GPU
+# Teste apenas local
+python testar_genesys_completo.py --local
+
+# Teste apenas GPU
+python testar_genesys_completo.py --gpu
+```
+
+### 🧪 **TESTES MANUAIS RÁPIDOS**
+
+```powershell
+# Status básico
+curl https://genesys.webcreations.com.br/
+
+# Verificar GPU local
 python testar_gpu_real.py
 ```
 
-### 🌍 **TESTE REMOTO COMPLETO**
-
-```powershell
-# Via túnel Cloudflare
-curl https://genesys.webcreations.com.br/
-
-# Teste automatizado completo
-python scripts/test_server_notebook.py --server-url https://genesys.webcreations.com.br
-
-# Teste rápido
-python scripts/test_server_notebook.py --quick
-```
-
-### 📊 **MONITORAMENTO DE PERFORMANCE**
-
-```powershell
-# Ver processos Python
-Get-Process python
-
-# Verificar uso da porta
-Get-NetTCPConnection -LocalPort 8002
-
-# Monitor GPU
-nvidia-smi
-
-# Monitor CPU/RAM
-tasklist /fi "imagename eq python.exe"
-```
-
-### 🧪 **VALIDAÇÕES REALIZADAS**
+### 📊 **VALIDAÇÕES REALIZADAS**
 
 | Teste                | Validação            | Resultado Esperado      |
 | -------------------- | -------------------- | ----------------------- |
@@ -407,65 +440,19 @@ tasklist /fi "imagename eq python.exe"
 
 ---
 
-## 📱 TESTE REMOTO (NOTEBOOK)
-
-### 🎯 **OBJETIVO**
-
-Testar o servidor Genesys remotamente do seu notebook, sem instalar o modelo localmente.
-
-### 📋 **PRÉ-REQUISITOS MÍNIMOS**
-
-- Python 3.8+
-- Conexão internet
-- Servidor Genesys rodando
-
-### ⚡ **CONFIGURAÇÃO RÁPIDA**
-
-```bash
-# Instalar dependências mínimas
-pip install requests tqdm
-
-# Descobrir URL automaticamente
-python scripts/cloudflare_tunnel_helper.py discover
-
-# Executar teste completo
-python scripts/test_server_notebook.py
-```
-
-### 🧪 **TIPOS DE TESTE**
-
-```bash
-# Teste completo (recomendado)
-python scripts/test_server_notebook.py
-
-# Teste rápido
-python scripts/test_server_notebook.py --quick
-
-# URL específica
-python scripts/test_server_notebook.py --server-url https://genesys.webcreations.com.br
-
-# Timeout personalizado
-python scripts/test_server_notebook.py --timeout 60
-```
-
----
-
 ## 🌐 ACESSO REMOTO COM CLOUDFLARE
 
 ### 🔧 **CONFIGURAÇÃO DO TÚNEL**
 
 1. **Obter Token:**
-
    - Acesse [Cloudflare Zero Trust](https://one.dash.cloudflare.com/)
    - Crie um túnel
    - Copie o token de instalação
 
 2. **Configurar Script:**
-
    ```powershell
    # Edite o arquivo
    notepad scripts\setup_cloudflare_tunnel.ps1
-
    # Cole seu token na variável $CloudflareToken
    ```
 
@@ -489,39 +476,41 @@ python scripts/cloudflare_tunnel_helper.py monitor
 
 ---
 
-## 📈 FINE-TUNING E APRENDIZADO
+## 🔧 CONFIGURAÇÕES AVANÇADAS
 
-### 📝 **LOGS AUTOMÁTICOS**
+### 👥 **AutoGen Multi-Agente**
 
-O sistema registra automaticamente:
+```bash
+# Iniciar orquestrador AutoGen
+python autogen_logic/main.py
 
+# API disponível em: http://localhost:8003
+# Endpoints:
+# - POST /chat (conversa direta)
+# - POST /debate (debate Genesys vs Gemini)
+```
+
+### 🔄 **Webhooks GitHub**
+
+O arquivo `.github/workflows/code_review.yml` já está configurado para:
+- Revisar commits automaticamente
+- Comentar com análises do Genesys
+- Sugerir melhorias
+
+### 📈 **Fine-Tuning Contínuo**
+
+```bash
+# Quando tiver dados suficientes
+python scripts/fine_tune.py
+```
+
+**Logs automáticos:**
 - ✅ Todas as interações com o agente
 - ✅ Prompts e respostas completas
 - ✅ Passos intermediários das ferramentas
 - ✅ Timestamp e metadados
 
 **Arquivo:** `data/logs/interaction_logs.jsonl`
-
-### 🎯 **PROCESSO DE FINE-TUNING**
-
-```bash
-# 1. Coletar dados (automático durante uso)
-# 2. Preparar dataset
-python scripts/fine_tune.py --prepare-dataset
-
-# 3. Executar fine-tuning (requer WSL + CUDA)
-python scripts/fine_tune.py --train
-
-# 4. Atualizar .env com novo modelo
-MODEL_GGUF_FILENAME="genesys_fine_tuned.gguf"
-```
-
-### 📊 **MÉTRICAS DE QUALIDADE**
-
-- **Volume de Dados:** Mínimo 1000 interações
-- **Qualidade:** Feedback manual ou automático
-- **Diversidade:** Variedade de tarefas e contextos
-- **Consistência:** Alinhamento com objetivos
 
 ---
 
@@ -534,7 +523,6 @@ MODEL_GGUF_FILENAME="genesys_fine_tuned.gguf"
 **Problema:** `python testar_gpu_real.py` mostra "❌ SEM GPU SUPPORT"
 
 **Diagnóstico:**
-
 ```powershell
 # Verificar CUDA
 nvcc --version
@@ -544,17 +532,15 @@ nvcc --version
 ```
 
 **Soluções:**
-
 1. **CUDA não instalado:** Instale CUDA Toolkit + reinicie PC
 2. **VS Build Tools:** Instale Visual Studio Build Tools
 3. **Recompilação:** Execute `pip install llama-cpp-python --force-reinstall`
 
 #### **2. SERVIDOR NÃO INICIA**
 
-**Problema:** `.\scripts\start_simple.ps1` falha
+**Problema:** `.\start_genesys.ps1` falha
 
 **Diagnóstico:**
-
 ```powershell
 # Verificar Python
 .\venv\Scripts\python.exe --version
@@ -564,17 +550,33 @@ nvcc --version
 ```
 
 **Soluções:**
-
 1. **Ambiente Virtual:** Recrie com `python -m venv venv`
 2. **Dependências:** Execute `pip install -r requirements.txt`
-3. **Porta ocupada:** Use porta diferente: `.\scripts\start_simple.ps1 -Port 8003`
+3. **Porta ocupada:** Use porta diferente: `.\start_genesys.ps1 -Port 8003`
 
-#### **3. MODELO NÃO ENCONTRADO**
+#### **3. EXTENSÃO CURSOR NÃO FUNCIONA**
+
+**Problema:** Extensão não carrega ou não conecta
+
+**Diagnóstico:**
+```powershell
+# Verificar instalação
+dir "$env:USERPROFILE\.cursor\extensions\genesys-ai-assistant"
+
+# Teste de conectividade
+curl https://genesys.webcreations.com.br/
+```
+
+**Soluções:**
+1. **Reinstalar extensão:** Execute `.\instalar_extensao_cursor.ps1 -Force`
+2. **Recarregar Cursor:** `Ctrl+Shift+P` → "Developer: Reload Window"
+3. **Verificar logs:** `Help` → `Toggle Developer Tools` → `Console`
+
+#### **4. MODELO NÃO ENCONTRADO**
 
 **Problema:** "Modelo não encontrado"
 
 **Diagnóstico:**
-
 ```powershell
 # Verificar arquivo
 dir models\*.gguf
@@ -584,50 +586,15 @@ dir models\*.gguf | ForEach-Object { "{0:N1} GB - {1}" -f ($_.Length/1GB), $_.Na
 ```
 
 **Soluções:**
-
 1. **Download:** Execute `python scripts/download_model.py`
 2. **Espaço:** Verifique espaço livre (mínimo 50GB)
 3. **Path:** Verifique configuração no `.env`
 
-#### **4. COMPILAÇÃO llama-cpp-python FALHA**
-
-**Problema:** `CMAKE_C_COMPILER not set`, `'nmake' not found`
-
-**Causa:** Visual Studio Build Tools não instalado
-
-**Solução:**
-
-1. Baixe [Visual Studio Build Tools](https://visualstudio.microsoft.com/pt-br/downloads/)
-2. Instale **"Desenvolvimento para desktop com C++"**
-3. Reinicie o computador
-4. Execute: `pip install llama-cpp-python --force-reinstall`
-
-#### **5. TÚNEL NÃO RESPONDE**
-
-**Problema:** Cloudflare tunnel inacessível
-
-**Diagnóstico:**
-
-```bash
-# Verificar se túnel está ativo
-python scripts/cloudflare_tunnel_helper.py discover
-
-# Status do túnel
-python scripts/cloudflare_tunnel_helper.py test
-```
-
-**Soluções:**
-
-1. **Reconfigurar:** Execute `.\scripts\setup_cloudflare_tunnel.ps1`
-2. **Token:** Verifique token no arquivo `.env`
-3. **Firewall:** Verifique bloqueios locais
-
-#### **6. PERFORMANCE BAIXA**
+#### **5. PERFORMANCE BAIXA**
 
 **Problema:** Respostas lentas (< 10 tokens/seg)
 
 **Diagnóstico:**
-
 ```powershell
 # Verificar se GPU está sendo usada
 nvidia-smi
@@ -637,61 +604,84 @@ python testar_gpu_real.py
 ```
 
 **Soluções:**
-
 1. **GPU não ativa:** Recompile com CUDA
 2. **VRAM insuficiente:** Use modelo menor (8B/13B)
 3. **RAM insuficiente:** Aumente swap/virtual memory
 
-#### **7. MODO DESENVOLVIMENTO**
+---
 
-**Situação:** "Servidor em modo desenvolvimento"
+## 📚 ESTRUTURA DO PROJETO
 
-**Explicação:** Normal quando modelo não está carregado.
-
-**Para ativação completa:**
-
-1. Verifique se arquivo `.gguf` existe em `models/`
-2. Execute `.\scripts\start_simple.ps1`
-3. Aguarde carregamento (5-15 minutos)
+```
+Genesys/
+├── 🤖 app/                          # Core da aplicação
+│   ├── agent_logic.py              # Lógica principal (GPU configurada)
+│   ├── main.py                     # FastAPI server
+│   └── tools/                      # Ferramentas do agente
+├── 🚀 scripts/                     # Scripts essenciais
+│   ├── start_genesys.ps1          # ⭐ COMANDO PRINCIPAL
+│   ├── start_genesys_server.py    # Core do servidor
+│   ├── test_server_notebook.py    # Testes completos
+│   └── download_model.py          # Download de modelos
+├── 💻 cursor-genesys-extension/    # Extensão para Cursor
+│   ├── package.json               # Configuração da extensão
+│   ├── src/                       # Código TypeScript
+│   │   ├── extension.ts           # Ponto de entrada
+│   │   ├── genesysApi.ts         # API de comunicação
+│   │   └── chatProvider.ts       # Provider do chat
+│   └── README.md                  # Guia da extensão
+├── 👥 autogen_logic/               # Orquestração multi-agente
+│   ├── main.py                    # AutoGen FastAPI
+│   ├── config.py                  # Configuração de modelos
+│   └── tools/                     # Ferramentas AutoGen
+├── 🧠 models/                      # Modelos de IA (GGUF)
+├── 📊 data/logs/                   # Logs para fine-tuning
+├── 🔧 venv/                        # Ambiente virtual Python
+├── 🗂️ workspace/                   # Área de trabalho segura
+├── 📄 .env                         # Configurações
+├── 🎮 testar_gpu_real.py          # Teste definitivo GPU
+├── 🔧 instalar_extensao_cursor.ps1 # Instalador da extensão
+└── 📚 README.md                   # Esta documentação
+```
 
 ---
 
-## 🛠️ SCRIPTS E UTILITÁRIOS
+## 🎯 PRÓXIMOS PASSOS
 
-### 🚀 **SCRIPTS ESSENCIAIS (APÓS LIMPEZA)**
+### ✅ **APÓS CONFIGURAÇÃO**
 
-| Script                          | Propósito             | Uso                               | Status            |
-| ------------------------------- | --------------------- | --------------------------------- | ----------------- |
-| **`scripts/start_simple.ps1`**  | **COMANDO PRINCIPAL** | `.\scripts\start_simple.ps1`      | ✅ **USE SEMPRE** |
-| `testar_gpu_real.py`            | Teste definitivo GPU  | `python testar_gpu_real.py`       | ✅ Essencial      |
-| `DIAGNOSTICO_CUDA_COMPLETO.ps1` | Diagnóstico CUDA      | `.\DIAGNOSTICO_CUDA_COMPLETO.ps1` | ✅ Emergência     |
+1. **Validar Instalação**
+   ```bash
+   python scripts/test_server_notebook.py
+   ```
 
-### 🔧 **SCRIPTS SECUNDÁRIOS (FUNCIONAIS)**
+2. **Primeira Interação**
+   - Acesse: `https://genesys.webcreations.com.br/docs`
+   - Teste o endpoint `/chat`
 
-| Script                                 | Propósito             | Quando Usar             |
-| -------------------------------------- | --------------------- | ----------------------- |
-| `scripts/start_genesys_server.py`      | Core do servidor      | Desenvolvimento/Debug   |
-| `scripts/start_genesys_background.ps1` | Background avançado   | Execução em produção    |
-| `scripts/test_server_notebook.py`      | Testes completos      | Validação remota        |
-| `scripts/setup_windows.ps1`            | Configuração ambiente | Primeira instalação     |
-| `scripts/download_model.py`            | Download modelo       | Baixar/re-baixar modelo |
-| `scripts/cloudflare_tunnel_helper.py`  | Utilitários túnel     | Gerenciar túnel         |
+3. **Configurar Extensão Cursor**
+   ```bash
+   .\instalar_extensao_cursor.ps1
+   ```
 
-### ⚙️ **PARÂMETROS ÚTEIS**
+4. **Ativar Modelo Completo**
+   ```bash
+   .\start_genesys.ps1
+   ```
 
-```powershell
-# Script principal com opções
-.\scripts\start_simple.ps1 -Port 8003
+5. **Fine-Tuning** (após 1000+ interações)
+   ```bash
+   python scripts/fine_tune.py
+   ```
 
-# Servidor Python com opções
-python scripts/start_genesys_server.py --port 8003 --host 127.0.0.1
+### 🎮 **FLUXO DE TRABALHO IDEAL**
 
-# Teste com timeout personalizado
-python scripts/test_server_notebook.py --timeout 120 --quick
-
-# Script de background com logs customizados
-.\scripts\start_genesys_background.ps1 -Port 8003 -LogFile "custom.log"
-```
+1. **Iniciar Genesys**: `.\start_genesys.ps1`
+2. **Abrir Cursor**: Com extensão instalada
+3. **Chat direto**: `Ctrl+Shift+G`
+4. **Explicar código**: Selecionar + `Ctrl+Shift+E`
+5. **Revisar código**: Clique direito → "🔍 Revisar Código"
+6. **Gerar código**: Command Palette → "Genesys: Gerar Código"
 
 ---
 
@@ -707,9 +697,6 @@ Get-Process python | Stop-Process -Force
 Get-NetTCPConnection -LocalPort 8002 | ForEach-Object {
     Stop-Process -Id $_.OwningProcess -Force
 }
-
-# Verificar se parou
-Get-NetTCPConnection -LocalPort 8002
 ```
 
 ### 🔄 **RESET COMPLETO**
@@ -748,86 +735,14 @@ python testar_gpu_real.py
 
 ---
 
-## 🎯 PRÓXIMOS PASSOS
-
-### ✅ **APÓS CONFIGURAÇÃO**
-
-1. **Validar Instalação**
-
-   ```bash
-   python scripts/test_server_notebook.py
-   ```
-
-2. **Primeira Interação**
-
-   - Acesse: `https://genesys.webcreations.com.br/docs`
-   - Teste o endpoint `/chat`
-
-3. **Configurar AutoGen**
-
-   ```bash
-   python autogen_logic/main.py
-   ```
-
-4. **Monitorar Logs**
-
-   - Logs do servidor: `genesys_server.log`
-   - Logs de interação: `data/logs/interaction_logs.jsonl`
-
-5. **Fine-Tuning**
-   - Colete ~1000 interações
-   - Execute: `python scripts/fine_tune.py`
-
-### 🎮 **CONFIGURAÇÃO GPU CONFIRMADA**
-
-**✅ Seu sistema está configurado para:**
-
-- **GPU:** Todas as camadas (`n_gpu_layers=-1`)
-- **Performance:** 50-200+ tokens/segundo
-- **VRAM:** Otimizada com FP16
-- **Monitoramento:** Logs detalhados
-
----
-
-## 📚 RECURSOS ADICIONAIS
-
-### 🔗 **LINKS IMPORTANTES**
-
-- **Hugging Face:** [Meta-Llama-3-70B-Instruct-GGUF](https://huggingface.co/PawanKrd/Meta-Llama-3-70B-Instruct-GGUF)
-- **Cloudflare Zero Trust:** [Dashboard](https://one.dash.cloudflare.com/)
-- **NVIDIA CUDA:** [Documentação WSL](https://docs.nvidia.com/cuda/wsl-user-guide/index.html)
-- **Visual Studio Build Tools:** [Download](https://visualstudio.microsoft.com/pt-br/downloads/)
-
-### 📁 **ESTRUTURA DO PROJETO**
-
-```
-Genesys/
-├── 🤖 app/                          # Core da aplicação
-│   ├── agent_logic.py              # Lógica principal (GPU configurada)
-│   ├── main.py                     # FastAPI server
-│   └── tools/                      # Ferramentas do agente
-├── 🚀 scripts/                     # Scripts essenciais
-│   ├── start_simple.ps1           # ⭐ COMANDO PRINCIPAL
-│   ├── start_genesys_server.py    # Core do servidor
-│   ├── test_server_notebook.py    # Testes completos
-│   └── download_model.py          # Download de modelos
-├── 🧠 models/                      # Modelos de IA (GGUF)
-├── 📊 data/logs/                   # Logs para fine-tuning
-├── 🔧 venv/                        # Ambiente virtual Python
-├── 🗂️ workspace/                   # Área de trabalho segura
-├── 📄 .env                         # Configurações
-├── 🎮 testar_gpu_real.py          # Teste definitivo GPU
-└── 📚 README.md                   # Esta documentação
-```
-
-### 🎯 **RESUMO EXECUTIVO**
+## 🎯 RESUMO EXECUTIVO
 
 | Item                | Status        | Comando/Info                     |
 | ------------------- | ------------- | -------------------------------- |
-| **🚀 Iniciar IA**   | ✅ Pronto     | `.\scripts\start_simple.ps1`     |
+| **🚀 Iniciar IA**   | ✅ Pronto     | `.\start_genesys.ps1`           |
 | **🎮 GPU**          | ✅ Ativada    | `n_gpu_layers=-1` (configurado)  |
 | **⚡ Performance**  | ✅ Máxima     | 50-200+ tokens/seg               |
-| **🧹 Sistema**      | ✅ Limpo      | Scripts desnecessários removidos |
+| **💻 Cursor**       | ✅ Integrado  | `.\instalar_extensao_cursor.ps1` |
 | **📚 Documentação** | ✅ Unificada  | Este arquivo README.md           |
 | **🔧 Diagnóstico**  | ✅ Disponível | `python testar_gpu_real.py`      |
 
@@ -835,12 +750,12 @@ Genesys/
 
 ## 💡 DICAS IMPORTANTES
 
-1. **🎮 GPU SEMPRE ATIVA** quando usar `.\scripts\start_simple.ps1`
+1. **🎮 GPU SEMPRE ATIVA** quando usar `.\start_genesys.ps1`
 2. **⚡ Performance máxima** garantida com `n_gpu_layers=-1`
-3. **🧹 Sistema limpo** - apenas scripts essenciais mantidos
+3. **💻 Extensão Cursor** para máxima produtividade
 4. **📚 Documentação unificada** neste README.md
 5. **🔧 Diagnóstico disponível** se precisar no futuro
-6. **🚀 Comando único** para lembrar: `.\scripts\start_simple.ps1`
+6. **🚀 Comando único** para lembrar: `.\start_genesys.ps1`
 
 ---
 
@@ -852,12 +767,17 @@ Genesys/
 
 ![Success](https://img.shields.io/badge/✅-SISTEMA_PRONTO-success?style=for-the-badge)
 ![GPU](https://img.shields.io/badge/🎮-GPU_ATIVADA-green?style=for-the-badge)
-![Performance](https://img.shields.io/badge/⚡-ULTRA_RÁPIDO-blue?style=for-the-badge)
+![Cursor](https://img.shields.io/badge/💻-CURSOR_INTEGRADO-blue?style=for-the-badge)
+![Performance](https://img.shields.io/badge/⚡-ULTRA_RÁPIDO-orange?style=for-the-badge)
 
-**🎯 SEU COMANDO ÚNICO:**
+**🎯 SEUS COMANDOS ÚNICOS:**
 
 ```powershell
-.\scripts\start_simple.ps1
+# Iniciar Genesys
+.\start_genesys.ps1
+
+# Instalar extensão Cursor
+.\instalar_extensao_cursor.ps1
 ```
 
 **🌟 Seu agente Genesys está pronto para dominar o mundo da IA local!**

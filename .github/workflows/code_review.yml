@@ -1,5 +1,5 @@
 # .github/workflows/code_review.yml
-name: "Revisão de Código com Agente Gênesys"
+name: "Revisão de Código com Agente Genesys"
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
           echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
           echo "COMMIT_DIFF=$(git diff HEAD~1 HEAD)" >> $GITHUB_ENV
 
-      - name: Enviar para revisão do Agente Gênesys
+      - name: Enviar para revisão do Agente Genesys
         id: genesis_review
         run: |
           PROMPT="Faça uma revisão de código para o seguinte commit. Mensagem: '${{ env.COMMIT_MESSAGE }}'. Diff das mudanças: \n\n${{ env.COMMIT_DIFF }}"
@@ -48,5 +48,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
-              body: `### 🤖 Revisão do Agente Gênesys:\n\n${process.env.REVIEW_COMMENT}`
+              body: `### 🤖 Revisão do Agente Genesys:\n\n${process.env.REVIEW_COMMENT}`
             })
