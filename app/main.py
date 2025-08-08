@@ -29,7 +29,7 @@ create_multimodal_message = None
 try:
     from app.agent_logic import create_genesys_agent, create_multimodal_message
     agent_executor, multimodal_chat_handler = create_genesys_agent()
-    print("INFO: Agente Gênesis e ferramentas carregados com sucesso.")
+    print("INFO: Agente Genesys e ferramentas carregados com sucesso.")
 except Exception as e:
     print(f"AVISO: Falha ao carregar o agente de IA: {e}")
     print("AVISO: O servidor continuará em modo de gerenciamento sem a capacidade de chat.")
@@ -75,7 +75,7 @@ class ScriptExecutionRequest(BaseModel):
 
 # Instanciar a aplicação FastAPI
 app = FastAPI(
-    title="API do Agente Gênesys",
+    title="API do Agente Genesys",
     description="Uma API minimalista para servir um agente de IA soberano para orquestradores como o AutoGen.",
     version="1.0.0",
 )
@@ -100,12 +100,12 @@ async def on_startup():
 async def root():
     """Endpoint principal para verificar o status da API."""
     agent_status = "operacional" if agent_executor else "não carregado"
-    return {"message": f"Bem-vindo à API do Gênesys. Servidor operacional. Agente: {agent_status}. Modelo: '{os.getenv('MODEL_GGUF_FILENAME')}'."}
+    return {"message": f"Bem-vindo à API do Genesys. Servidor operacional. Agente: {agent_status}. Modelo: '{os.getenv('MODEL_GGUF_FILENAME')}'."}
 
 @app.post("/chat", tags=["Interação com Agente"])
 async def chat_with_agent(request: ChatRequest):
     """
-    Endpoint principal para interagir com o Agente Gênesis.
+    Endpoint principal para interagir com o Agente Genesys.
     Recebe um prompt e, opcionalmente, uma imagem em base64.
     Retorna a resposta do agente e loga a interação para fine-tuning.
     """

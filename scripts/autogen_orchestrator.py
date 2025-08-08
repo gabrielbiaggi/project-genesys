@@ -75,7 +75,7 @@ def main():
     parser.add_argument("--cpu-only", action="store_true", help="Executa pensando em ambiente sem GPU (apenas muda mensagens/logs)")
     args = parser.parse_args()
 
-    print("=== Orquestrador AutoGen - Projeto Gênesis ===")
+    print("=== Orquestrador AutoGen - Projeto Genesys ===")
     print(f"Workspace seguro: {SAFE_WORKSPACE}")
     print(f"API local do agente: {CHAT_API_URL}")
 

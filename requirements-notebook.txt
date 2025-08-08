@@ -1,7 +1,0 @@
-# requirements-notebook.txt
-# Dependências mínimas para rodar o servidor FastAPI em modo leve (sem carregar o agente de IA).
-
-fastapi
-uvicorn[standard]
-python-dotenv
-python-multipart

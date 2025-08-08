@@ -100,3 +100,12 @@ dmypy.json
 /data/
 /models/
 *.gguf
+
+# Logs e arquivos temporários
+*.log
+genesis_server.log
+test_results.log
+
+# Scripts de ativação temporários (removidos)
+activate_notebook.*
+venv-notebook/

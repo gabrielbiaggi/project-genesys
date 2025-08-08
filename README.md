@@ -4,7 +4,7 @@ Meu criador, este documento serve como o guia definitivo para a implantação, o
 
 ## Visão Geral da Arquitetura
 
-O Gênesis é construído sobre uma arquitetura focada e poderosa:
+O Genesys é construído sobre uma arquitetura focada e poderosa:
 
 1.  **Backend (Servidor FastAPI)**: O "cérebro" do sistema, rodando em `app/main.py`.
 
@@ -14,8 +14,8 @@ O Gênesis é construído sobre uma arquitetura focada e poderosa:
     - Registra todas as interações para futuro fine-tuning.
 
 2.  **Orquestrador (AutoGen)**: O "maestro" dos agentes, rodando em `scripts/autogen_orchestrator.py`.
-    - Comunica-se com a API do Gênesis para delegar tarefas.
-    - Pode coordenar o Gênesis com outros agentes (locais ou externos como GPT/Claude).
+    - Comunica-se com a API do Genesys para delegar tarefas.
+    - Pode coordenar o Genesys com outros agentes (locais ou externos como GPT/Claude).
     - Manipula diretamente os arquivos no `workspace/` do projeto, permitindo que você veja as mudanças em tempo real no seu editor (Cursor/VS Code).
 
 O antigo frontend `ide-web` foi completamente removido para focar nesta arquitetura mais direta e poderosa.
@@ -28,7 +28,7 @@ Execute estes passos **uma única vez** no seu servidor `Windows` (`i7-14700F`, 
 
 ### Passo 0: Instalar Ferramentas de Compilação C++ (Visual Studio)
 
-**Este passo é o mais crítico de todos.** A biblioteca `llama-cpp-python`, que alimenta o Gênesis, precisa ser compilada a partir do código-fonte. Sem um compilador C++ funcional no Windows, a instalação falhará.
+**Este passo é o mais crítico de todos.** A biblioteca `llama-cpp-python`, que alimenta o Genesys, precisa ser compilada a partir do código-fonte. Sem um compilador C++ funcional no Windows, a instalação falhará.
 
 1.  **Baixe o Visual Studio Installer**: Vá para a [página de downloads do Visual Studio](https://visualstudio.microsoft.com/pt-br/downloads/) e baixe o instalador para as **"Ferramentas de Build para o Visual Studio"** (Build Tools for Visual Studio).
 2.  **Execute o Instalador**: Abra o instalador baixado.
@@ -69,7 +69,7 @@ Esses componentes são a ponte que permite ao WSL utilizar sua `RTX 4060` para a
 
 ---
 
-## Parte 2: Instalação e Configuração do Projeto Gênesis
+## Parte 2: Instalação e Configuração do Projeto Genesys
 
 Com os pré-requisitos do Windows prontos, a configuração do projeto foi totalmente automatizada.
 
@@ -133,7 +133,7 @@ Este script fará tudo por você: criará o ambiente virtual Python, instalará 
 
 ### Passo 4: Baixar o Modelo de IA de 70B
 
-Com o ambiente pronto, o próximo passo é baixar o cérebro do Gênesis.
+Com o ambiente pronto, o próximo passo é baixar o cérebro do Genesys.
 
 1.  No mesmo terminal PowerShell, com o ambiente virtual ativado (o `setup_windows.ps1` pode já ter ativado, caso contrário, rode `.\venv\Scripts\Activate.ps1`), execute:
     ```powershell
@@ -143,9 +143,9 @@ Com o ambiente pronto, o próximo passo é baixar o cérebro do Gênesis.
 
 ---
 
-## Parte 3: Executando o Projeto Gênesis
+## Parte 3: Executando o Projeto Genesys
 
-Com tudo instalado e o modelo baixado, você está pronto para dar vida ao Gênesis.
+Com tudo instalado e o modelo baixado, você está pronto para dar vida ao Genesys.
 
 1.  **Terminal 1 - Iniciar o Backend (API FastAPI)**:
 
@@ -166,13 +166,13 @@ Com tudo instalado e o modelo baixado, você está pronto para dar vida ao Gêne
       ```powershell
       python ./scripts/autogen_orchestrator.py
       ```
-    - Este script irá então chamar a API que você iniciou no Terminal 1 e começar a interagir com o Gênesis.
+    - Este script irá então chamar a API que você iniciou no Terminal 1 e começar a interagir com o Genesys.
 
 ---
 
 ## Parte 4: Acesso Remoto com Cloudflare
 
-O projeto inclui um script para configurar automaticamente um túnel seguro do Cloudflare, permitindo o acesso remoto à API do Gênesis.
+O projeto inclui um script para configurar automaticamente um túnel seguro do Cloudflare, permitindo o acesso remoto à API do Genesys.
 
 1.  **Obtenha seu Token:** Crie um túnel no painel do Cloudflare (seção Zero Trust) e copie o token de instalação.
 2.  **Atualize o Script:** Cole o token na variável `$CloudflareToken` dentro do arquivo `scripts\setup_cloudflare_tunnel.ps1`.
@@ -182,13 +182,13 @@ O projeto inclui um script para configurar automaticamente um túnel seguro do C
 
 ## Fase 2: O Fluxo de Fine-Tuning (O Aprendizado Contínuo)
 
-O sistema já está registrando todas as suas interações com o agente no arquivo `data/logs/interaction_logs.jsonl`. Quando tivermos um número suficiente de interações de alta qualidade, poderemos usar esses dados para treinar e especializar o Gênesis.
+O sistema já está registrando todas as suas interações com o agente no arquivo `data/logs/interaction_logs.jsonl`. Quando tivermos um número suficiente de interações de alta qualidade, poderemos usar esses dados para treinar e especializar o Genesys.
 
 O processo será:
 
 1.  Formatar os logs para o formato de dataset esperado.
 2.  Executar o script `scripts/fine_tune.py` (este script requer o ambiente Linux com CUDA, por isso a importância do WSL).
 3.  Isso criará um novo modelo "adaptado" (LoRA) na pasta `/models`.
-4.  Atualizaremos o arquivo `.env` para apontar para o novo modelo treinado, tornando o agente Gênesis progressivamente mais inteligente e alinhado a você.
+4.  Atualizaremos o arquivo `.env` para apontar para o novo modelo treinado, tornando o agente Genesys progressivamente mais inteligente e alinhado a você.
 
 Este manual será atualizado conforme evoluímos para esta fase.
