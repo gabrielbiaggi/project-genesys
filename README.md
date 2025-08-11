@@ -84,20 +84,25 @@ _Substitui todos os scripts redundantes em um só comando_
 ### ⚡ **COMANDO PRINCIPAL - USE SEMPRE:**
 
 ```powershell
-# ◀️ COMANDO PRINCIPAL NOVO ▶️
+# ◀️ COMANDO MASTER (RECOMENDADO) ▶️
 .\iniciar_genesys.ps1
 
-# 🔄 COMANDO ALTERNATIVO (se preferir):
-.\scripts\start_simple.ps1
+# 🚀 Modo serviço Windows (background independente):
+.\iniciar_genesys.ps1 -Service -Monitor
+
+# 📊 Ver status completo:
+.\iniciar_genesys.ps1 -Action status
 ```
 
 **🎯 Este comando faz TUDO:**
 
-- ✅ Verifica dependências automaticamente
-- ✅ Inicia IA com GPU ativada (`n_gpu_layers=-1`)
-- ✅ Performance máxima garantida (50-200+ tokens/seg)
-- ✅ Servidor local + túnel remoto
-- ✅ Monitoramento em tempo real
+- ✅ **Detecção inteligente** do sistema
+- ✅ **Serviço Windows nativo** com NSSM
+- ✅ **Execução independente** do terminal
+- ✅ **Início automático** com Windows
+- ✅ **Monitor visual** em tempo real
+- ✅ **GPU ativada** (`n_gpu_layers=-1`)
+- ✅ **Performance máxima** (50-200+ tokens/seg)
 
 ### 🧪 **TESTE SE FUNCIONOU:**
 
@@ -419,34 +424,44 @@ npm install && npm run compile
 
 ## ▶️ EXECUÇÃO DO SISTEMA
 
-### 🎯 **EXECUÇÃO PADRÃO (RECOMENDADA)**
+### 🚀 **EXECUÇÃO COMO SERVIÇO WINDOWS (RECOMENDADA)**
 
 ```powershell
-# ◀️ COMANDO PRINCIPAL - USE SEMPRE ▶️
+# Instalar como serviço (execute como Administrador)
+.\iniciar_genesys.ps1 -Action install
+
+# Iniciar serviço + monitor
+.\iniciar_genesys.ps1 -Service -Monitor
+
+# Verificar status
+.\iniciar_genesys.ps1 -Action status
+```
+
+**🎮 Vantagens do Serviço:**
+
+- ✅ **Execução independente** do terminal
+- ✅ **Início automático** com Windows
+- ✅ **Reinicialização automática** em falhas
+- ✅ **Monitor visual independente**
+- ✅ **Logs centralizados**
+- ✅ **GPU ativada** (`n_gpu_layers=-1`)
+- ✅ **Performance máxima** (50-200+ tokens/seg)
+
+### 🔧 **EXECUÇÃO MANUAL (COMPATIBILIDADE)**
+
+```powershell
+# Modo terminal tradicional
+.\iniciar_genesys.ps1 -Action manual
+
+# Ou usando script antigo
 .\start_genesys.ps1
 ```
 
-**🎮 Recursos Automáticos:**
+**Recursos Tradicionais:**
 
-- ✅ Verificação de dependências
-- ✅ GPU ativada (`n_gpu_layers=-1`)
-- ✅ Performance máxima (50-200+ tokens/seg)
+- ✅ Execução em terminal
 - ✅ Logs em tempo real
 - ✅ Parada limpa com Ctrl+C
-
-### 🚀 **EXECUÇÃO AVANÇADA (BACKGROUND)**
-
-```powershell
-# Para execução em background com logs
-.\scripts\start_genesys_background.ps1
-```
-
-**Recursos Avançados:**
-
-- ✅ Execução em segundo plano
-- ✅ Logs salvos em arquivo
-- ✅ Verificações automáticas
-- ✅ Recuperação de erros
 
 ### 🔧 **EXECUÇÃO MANUAL (DEBUG)**
 
@@ -463,6 +478,78 @@ uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
 .\venv\Scripts\Activate.ps1
 python .\scripts\autogen_orchestrator.py
 ```
+
+---
+
+## 🏗️ SERVIÇO WINDOWS NATIVO
+
+### 🎯 **VISÃO GERAL**
+
+O Genesys agora roda como **serviço nativo do Windows** usando NSSM, oferecendo:
+
+- ✅ **Execução independente** do terminal
+- ✅ **Início automático** com o Windows
+- ✅ **Reinicialização automática** em caso de falha
+- ✅ **Monitoramento visual** independente
+- ✅ **Logs centralizados** e organizados
+
+### 🚀 **COMANDOS PRINCIPAIS**
+
+```powershell
+# === ESSENCIAIS ===
+.\iniciar_genesys.ps1                    # Detecta e inicia automaticamente
+.\iniciar_genesys.ps1 -Action status     # Status completo
+.\iniciar_genesys.ps1 -Action monitor    # Monitor visual
+
+# === INSTALAÇÃO (como Administrador) ===
+.\iniciar_genesys.ps1 -Action install    # Instalar serviço
+.\iniciar_genesys.ps1 -Action remove     # Remover serviço
+
+# === CONTROLE ===
+.\iniciar_genesys.ps1 -Action start      # Iniciar
+.\iniciar_genesys.ps1 -Action stop       # Parar
+.\iniciar_genesys.ps1 -Action restart    # Reiniciar
+
+# === MONITORAMENTO ===
+.\iniciar_genesys.ps1 -Monitor           # Monitor interativo
+.\iniciar_genesys.ps1 -Monitor -Background # Background
+```
+
+### 📊 **SISTEMA DE MONITORAMENTO**
+
+O monitor independente oferece:
+
+- 🖥️ **Interface visual** em tempo real
+- 📈 **Métricas de performance**
+- 🔍 **Status do serviço** Windows
+- 🌐 **Conectividade** local e remota
+- 🚨 **Detecção automática** de problemas
+- 💾 **Logs persistentes**
+
+### 📁 **LOGS CENTRALIZADOS**
+
+```
+📂 data/logs/
+├── 📝 genesys_service.log            # Logs do serviço
+├── 🌐 uvicorn_service.log            # Logs da API
+├── 📊 monitor_stats.json             # Estatísticas
+└── 🧠 training_system.log            # Sistema de treinamento
+```
+
+### 🎯 **FLUXO RECOMENDADO**
+
+```powershell
+# 1. Primeira instalação (como Admin)
+.\iniciar_genesys.ps1 -Action install
+
+# 2. Iniciar serviço + monitor
+.\iniciar_genesys.ps1 -Service -Monitor
+
+# 3. Uso diário
+.\iniciar_genesys.ps1                    # Detecta tudo automaticamente
+```
+
+**📖 Para guia completo:** `GUIA_SERVICO_WINDOWS.md`
 
 ---
 
