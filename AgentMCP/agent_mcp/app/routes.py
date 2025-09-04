@@ -842,3 +842,42 @@ routes.extend([
 
 # Add the sample data route
 routes.append(Route('/api/create-sample-memories', endpoint=create_sample_memories_route, name="create_sample_memories", methods=['POST', 'OPTIONS']))
+
+# --- Service Management Endpoints ---
+from ..features.service_manager import start_genesys_process, stop_genesys_process, get_genesys_status
+
+async def start_genesys_route(request: Request) -> JSONResponse:
+    """API endpoint to start the Genesys Agent subprocess."""
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not verify_token(token, required_role='admin'):
+        return JSONResponse({"error": "Unauthorized: Invalid admin token"}, status_code=403)
+    
+    result = start_genesys_process()
+    status_code = 200 if result["status"] in ["started", "already_running"] else 500
+    return JSONResponse(result, status_code=status_code)
+
+async def stop_genesys_route(request: Request) -> JSONResponse:
+    """API endpoint to stop the Genesys Agent subprocess."""
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not verify_token(token, required_role='admin'):
+        return JSONResponse({"error": "Unauthorized: Invalid admin token"}, status_code=403)
+
+    result = stop_genesys_process()
+    status_code = 200 if result["status"] in ["stopped", "not_running", "not_found"] else 500
+    return JSONResponse(result, status_code=status_code)
+
+async def genesys_status_route(request: Request) -> JSONResponse:
+    """API endpoint to get the status of the Genesys Agent subprocess."""
+    # This endpoint can be less restricted if desired, but let's keep it admin-only for now
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not verify_token(token, required_role='admin'):
+        return JSONResponse({"error": "Unauthorized: Invalid admin token"}, status_code=403)
+
+    status = get_genesys_status()
+    return JSONResponse(status)
+
+routes.extend([
+    Route('/api/service/genesys/start', endpoint=start_genesys_route, name="start_genesys_service", methods=['POST', 'OPTIONS']),
+    Route('/api/service/genesys/stop', endpoint=stop_genesys_route, name="stop_genesys_service", methods=['POST', 'OPTIONS']),
+    Route('/api/service/genesys/status', endpoint=genesys_status_route, name="status_genesys_service", methods=['GET', 'OPTIONS']),
+])

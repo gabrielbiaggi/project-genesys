@@ -87,10 +87,17 @@ async def sse_connection_handler(request): # Matches original handle_sse in main
 
 
 # --- Starlette Application Creation ---
-def create_app(project_dir: str, admin_token_cli: Optional[str] = None) -> Starlette:
+def create_app() -> Starlette:
     """
     Creates and configures the main Starlette application.
+    This is a factory function used by Uvicorn.
+    It reads configuration from environment variables set by the CLI.
     """
+    # Read configuration from environment variables
+    project_dir = os.environ.get("MCP_PROJECT_DIR", ".")
+    admin_token_cli = os.environ.get("MCP_ADMIN_TOKEN_CLI")
+    debug_mode = os.environ.get("MCP_DEBUG", "false").lower() == "true"
+
     # Define lifecycle events
     async def on_app_startup():
         # Call the centralized application startup logic
@@ -98,7 +105,6 @@ def create_app(project_dir: str, admin_token_cli: Optional[str] = None) -> Starl
         # Start background tasks within a task group managed by Uvicorn/Hypercorn or AnyIO runner
         # This requires the server runner to manage the task group.
         # For now, we assume the main CLI runner will handle the task group.
-        # If Uvicorn is run programmatically, its 'lifespan' can manage this.
         logger.info("Starlette app startup complete. Background tasks should be started by the server runner.")
 
     async def on_app_shutdown():
@@ -147,7 +153,7 @@ def create_app(project_dir: str, admin_token_cli: Optional[str] = None) -> Starl
         on_startup=[on_app_startup], # List of startup handlers
         on_shutdown=[on_app_shutdown], # List of shutdown handlers
         middleware=middleware_stack,
-        debug=os.environ.get("MCP_DEBUG", "false").lower() == "true" # Optional debug mode
+        debug=debug_mode # Use debug mode from env var
     )
 
     logger.info("Starlette application instance created with routes and lifecycle events.")

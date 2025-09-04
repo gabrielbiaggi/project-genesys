@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Cpu, MemoryStick, HardDrive } from 'lucide-react'
 import { useDataStore } from '@/lib/stores/data-store'
 import { apiClient } from '@/lib/api'
+import { ServiceControlCard } from './service-control-card'
 
 interface SystemUsage {
   cpu_percent: number;
@@ -61,7 +62,7 @@ export function SystemDashboard() {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
@@ -92,6 +93,7 @@ export function SystemDashboard() {
           <Progress value={usage.disk_percent} className="w-full mt-2" indicatorClassName={getProgressColor(usage.disk_percent)} />
         </CardContent>
       </Card>
+      <ServiceControlCard />
     </div>
   )
 }

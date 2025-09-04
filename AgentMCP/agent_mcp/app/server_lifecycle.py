@@ -39,7 +39,7 @@ async def application_startup(
     - Performs VSS loadability check.
     - Registers signal handlers.
     """
-    # Load environment variables from .env file
+    # Load environment variables from .env file first
     load_dotenv()
 
     logger.info("MCP Server application starting up...")
@@ -355,6 +355,12 @@ async def application_shutdown():
     write_queue = get_write_queue()
     await write_queue.stop()
     logger.info("Database write queue stopped.")
+
+    # Stop the Genesys subprocess if it's running
+    from ..features.service_manager import stop_genesys_process
+    if g.genesys_process and g.genesys_process.poll() is None:
+        logger.info("Shutting down Genesys Agent subprocess...")
+        stop_genesys_process()
 
     # Add any other cleanup (e.g., closing persistent connections if not managed by context)
     # For SQLite, connections are typically short-lived per request/operation.

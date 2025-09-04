@@ -2,6 +2,7 @@
 import os
 import sys # For sys.exit in case of critical failure during initialization (optional)
 from typing import Optional # Added import for Optional
+from dotenv import load_dotenv # Added import for load_dotenv
 
 # Import OpenAI library.
 # It's good practice to handle potential ImportError if it's an optional dependency,
@@ -28,52 +29,47 @@ from ..core import globals as g # To store the client instance if needed globall
 
 def initialize_openai_client() -> Optional[openai.OpenAI]:
     """
-    Initializes and returns the OpenAI API client.
-    Sets the global `g.openai_client_instance`.
-    If initialization fails, `g.openai_client_instance` remains None and this function returns None.
-    This function should be called once at application startup.
+    Initializes and returns the OpenAI client.
+    Checks for API key in environment variables.
+    Sets g.openai_client.
     """
-    if g.openai_client_instance is not None:
-        logger.info("OpenAI client already initialized.")
-        return g.openai_client_instance
+    # Ensure environment variables from .env file are loaded
+    load_dotenv()
 
-    if openai is None: # Check if the library import failed
-        logger.error("OpenAI library failed to import. Cannot initialize client.")
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        logger.warning("OPENAI_API_KEY not found in environment variables. RAG features will be disabled.")
+        g.openai_client = None
         return None
 
-    if not OPENAI_API_KEY_ENV: # Check from config.py, which got it from os.environ
-        logger.error("OPENAI_API_KEY not found in environment variables. Cannot initialize OpenAI client.")
-        # Do not print to console - just log to file
-        return None
+    if g.openai_client is None:
+        try:
+            # Create the OpenAI client instance
+            # Original main.py:191
+            client = openai.OpenAI(api_key=api_key)
 
-    logger.info("Initializing OpenAI client...")
-    try:
-        # Create the OpenAI client instance
-        # Original main.py:191
-        client = openai.OpenAI(api_key=OPENAI_API_KEY_ENV)
+            # Test the connection by making a simple, low-cost API call
+            # Original main.py:193 (client.models.list())
+            client.models.list() # This call verifies API key and connectivity.
 
-        # Test the connection by making a simple, low-cost API call
-        # Original main.py:193 (client.models.list())
-        client.models.list() # This call verifies API key and connectivity.
-
-        logger.info("OpenAI client initialized and connection tested successfully.")
-        g.openai_client_instance = client # Store the initialized client in globals
-        return client
-    except openai.AuthenticationError as e:
-        logger.error(f"OpenAI Authentication Error: Invalid API key or organization ID. Please check your credentials. Details: {e}")
-        g.openai_client_instance = None
-    except openai.APIConnectionError as e:
-        logger.error(f"OpenAI API Connection Error: Could not connect to OpenAI. Check your network settings and OpenAI's status page. Details: {e}")
-        g.openai_client_instance = None
-    except openai.RateLimitError as e:
-        logger.error(f"OpenAI Rate Limit Error: You have exceeded your API quota or rate limit. Details: {e}")
-        g.openai_client_instance = None
-    except openai.APIError as e: # Catch other OpenAI API specific errors
-        logger.error(f"OpenAI API Error during client initialization: {e}", exc_info=True)
-        g.openai_client_instance = None
-    except Exception as e: # Catch any other unexpected errors
-        logger.error(f"Failed to initialize OpenAI client due to an unexpected error: {e}", exc_info=True)
-        g.openai_client_instance = None
+            logger.info("OpenAI client initialized and connection tested successfully.")
+            g.openai_client = client # Store the initialized client in globals
+            return client
+        except openai.AuthenticationError as e:
+            logger.error(f"OpenAI Authentication Error: Invalid API key or organization ID. Please check your credentials. Details: {e}")
+            g.openai_client = None
+        except openai.APIConnectionError as e:
+            logger.error(f"OpenAI API Connection Error: Could not connect to OpenAI. Check your network settings and OpenAI's status page. Details: {e}")
+            g.openai_client = None
+        except openai.RateLimitError as e:
+            logger.error(f"OpenAI Rate Limit Error: You have exceeded your API quota or rate limit. Details: {e}")
+            g.openai_client = None
+        except openai.APIError as e: # Catch other OpenAI API specific errors
+            logger.error(f"OpenAI API Error during client initialization: {e}", exc_info=True)
+            g.openai_client = None
+        except Exception as e: # Catch any other unexpected errors
+            logger.error(f"Failed to initialize OpenAI client due to an unexpected error: {e}", exc_info=True)
+            g.openai_client = None
 
     return None # Return None if initialization failed
 
@@ -82,14 +78,8 @@ def get_openai_client() -> Optional[openai.OpenAI]:
     Returns the globally initialized OpenAI client instance.
     If the client is not initialized, it attempts to initialize it.
     """
-    if g.openai_client_instance is None:
-        logger.info("OpenAI client not yet initialized. Attempting initialization now.")
-        initialize_openai_client() # Attempt to initialize if not already done.
-
-    if g.openai_client_instance is None:
-        logger.warning("OpenAI client is not available (initialization might have failed).")
-
-    return g.openai_client_instance
+    # It is assumed that initialize_openai_client has been called at startup.
+    return g.openai_client
 
 # Any other OpenAI specific helper functions that don't belong in RAG or tools
 # could go here. For example, if you had a generic text generation or embedding
