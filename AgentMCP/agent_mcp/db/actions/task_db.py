@@ -9,20 +9,24 @@ from ..connection import get_db_connection
 
 # This module provides reusable database operations specifically for the 'tasks' table.
 
+
 def _parse_task_json_fields(task_data: Dict[str, Any]) -> Dict[str, Any]:
     """Helper to parse JSON string fields in a task dictionary."""
     if not task_data:
         return {}
-    
+
     parsed_data = task_data.copy()
     for field_key in ["child_tasks", "depends_on_tasks", "notes"]:
         if field_key in parsed_data and isinstance(parsed_data[field_key], str):
             try:
                 parsed_data[field_key] = json.loads(parsed_data[field_key] or "[]")
             except json.JSONDecodeError:
-                logger.warning(f"Failed to parse JSON for field '{field_key}' in task '{parsed_data.get('task_id', 'Unknown')}'. Raw: {parsed_data[field_key]}")
-                parsed_data[field_key] = [] # Default to empty list on parse error
+                logger.warning(
+                    f"Failed to parse JSON for field '{field_key}' in task '{parsed_data.get('task_id', 'Unknown')}'. Raw: {parsed_data[field_key]}"
+                )
+                parsed_data[field_key] = []  # Default to empty list on parse error
     return parsed_data
+
 
 def get_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
     """
@@ -40,14 +44,19 @@ def get_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
             return _parse_task_json_fields(dict(row))
         return None
     except sqlite3.Error as e:
-        logger.error(f"Database error fetching task by ID '{task_id}': {e}", exc_info=True)
+        logger.error(
+            f"Database error fetching task by ID '{task_id}': {e}", exc_info=True
+        )
         return None
     except Exception as e:
-        logger.error(f"Unexpected error fetching task by ID '{task_id}': {e}", exc_info=True)
+        logger.error(
+            f"Unexpected error fetching task by ID '{task_id}': {e}", exc_info=True
+        )
         return None
     finally:
         if conn:
             conn.close()
+
 
 def get_all_tasks_from_db() -> List[Dict[str, Any]]:
     """
@@ -61,13 +70,15 @@ def get_all_tasks_from_db() -> List[Dict[str, Any]]:
         conn = get_db_connection()
         cursor = conn.cursor()
         # Query matches the one in server_lifecycle.application_startup and all_tasks_api_route
-        cursor.execute("SELECT * FROM tasks ORDER BY created_at DESC") # Order for consistency
+        cursor.execute(
+            "SELECT * FROM tasks ORDER BY created_at DESC"
+        )  # Order for consistency
         for row in cursor.fetchall():
             tasks_list.append(_parse_task_json_fields(dict(row)))
         return tasks_list
     except sqlite3.Error as e:
         logger.error(f"Database error fetching all tasks: {e}", exc_info=True)
-        return [] # Return empty list on error
+        return []  # Return empty list on error
     except Exception as e:
         logger.error(f"Unexpected error fetching all tasks: {e}", exc_info=True)
         return []
@@ -75,7 +86,10 @@ def get_all_tasks_from_db() -> List[Dict[str, Any]]:
         if conn:
             conn.close()
 
-def get_tasks_by_agent_id(agent_id: str, status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+
+def get_tasks_by_agent_id(
+    agent_id: str, status_filter: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """
     Fetches tasks assigned to a specific agent, optionally filtered by status.
     Parses JSON fields for each task.
@@ -85,29 +99,35 @@ def get_tasks_by_agent_id(agent_id: str, status_filter: Optional[str] = None) ->
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         query = "SELECT * FROM tasks WHERE assigned_to = ?"
         params: List[Any] = [agent_id]
-        
+
         if status_filter:
             query += " AND status = ?"
             params.append(status_filter)
-        
+
         query += " ORDER BY created_at DESC"
-        
+
         cursor.execute(query, tuple(params))
         for row in cursor.fetchall():
             tasks_list.append(_parse_task_json_fields(dict(row)))
         return tasks_list
     except sqlite3.Error as e:
-        logger.error(f"Database error fetching tasks for agent '{agent_id}': {e}", exc_info=True)
+        logger.error(
+            f"Database error fetching tasks for agent '{agent_id}': {e}", exc_info=True
+        )
         return []
     except Exception as e:
-        logger.error(f"Unexpected error fetching tasks for agent '{agent_id}': {e}", exc_info=True)
+        logger.error(
+            f"Unexpected error fetching tasks for agent '{agent_id}': {e}",
+            exc_info=True,
+        )
         return []
     finally:
         if conn:
             conn.close()
+
 
 # Example of a more specific update function (not directly from original main.py as a separate function)
 # Task updates are currently handled within task_tools.py, which is fine for 1-to-1.
@@ -120,7 +140,9 @@ def update_task_fields_in_db(task_id: str, fields_to_update: Dict[str, Any]) -> 
     Returns True on success, False on failure.
     """
     if not task_id or not fields_to_update:
-        logger.warning("update_task_fields_in_db called with no task_id or no fields to update.")
+        logger.warning(
+            "update_task_fields_in_db called with no task_id or no fields to update."
+        )
         return False
 
     conn = None
@@ -135,60 +157,77 @@ def update_task_fields_in_db(task_id: str, fields_to_update: Dict[str, Any]) -> 
             # Basic validation against known task fields from schema.py
             # This list should match columns in the 'tasks' table.
             valid_fields = [
-                "title", "description", "assigned_to", "status", "priority",
-                "parent_task", "child_tasks", "depends_on_tasks", "notes"
+                "title",
+                "description",
+                "assigned_to",
+                "status",
+                "priority",
+                "parent_task",
+                "child_tasks",
+                "depends_on_tasks",
+                "notes",
             ]
             if field not in valid_fields:
-                logger.warning(f"Attempted to update invalid task field: {field} for task {task_id}. Skipping.")
+                logger.warning(
+                    f"Attempted to update invalid task field: {field} for task {task_id}. Skipping."
+                )
                 continue
 
             # Safe field mapping to prevent SQL injection
             safe_field_mapping = {
                 "title": "title",
-                "description": "description", 
+                "description": "description",
                 "assigned_to": "assigned_to",
                 "status": "status",
                 "priority": "priority",
                 "parent_task": "parent_task",
                 "child_tasks": "child_tasks",
                 "depends_on_tasks": "depends_on_tasks",
-                "notes": "notes"
+                "notes": "notes",
             }
-            safe_field = safe_field_mapping[field]  # This will raise KeyError if invalid
+            safe_field = safe_field_mapping[
+                field
+            ]  # This will raise KeyError if invalid
             update_clauses.append(f"{safe_field} = ?")
             if field in ["child_tasks", "depends_on_tasks", "notes"]:
-                update_values.append(json.dumps(value or [])) # Ensure JSON list for these
+                update_values.append(
+                    json.dumps(value or [])
+                )  # Ensure JSON list for these
             else:
                 update_values.append(value)
-        
+
         if not update_clauses:
             logger.info(f"No valid fields to update for task {task_id}.")
-            return False # Or True, as no actual update was needed/performed
+            return False  # Or True, as no actual update was needed/performed
 
         # Always update the 'updated_at' timestamp
         update_clauses.append("updated_at = ?")
         update_values.append(datetime.datetime.now().isoformat())
 
-        update_values.append(task_id) # For the WHERE clause
+        update_values.append(task_id)  # For the WHERE clause
 
         sql = f"UPDATE tasks SET {', '.join(update_clauses)} WHERE task_id = ?"
-        
+
         cursor.execute(sql, tuple(update_values))
         conn.commit()
 
         if cursor.rowcount > 0:
-            logger.info(f"Task '{task_id}' updated in DB with fields: {list(fields_to_update.keys())}.")
+            logger.info(
+                f"Task '{task_id}' updated in DB with fields: {list(fields_to_update.keys())}."
+            )
             return True
         else:
             logger.warning(f"Task '{task_id}' not found or update had no effect in DB.")
-            return False # Task might not exist or values were the same
+            return False  # Task might not exist or values were the same
 
     except sqlite3.Error as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         logger.error(f"Database error updating task '{task_id}': {e}", exc_info=True)
         return False
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         logger.error(f"Unexpected error updating task '{task_id}': {e}", exc_info=True)
         return False
     finally:

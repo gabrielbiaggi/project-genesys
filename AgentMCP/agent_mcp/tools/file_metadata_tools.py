@@ -124,7 +124,7 @@ async def view_file_metadata_tool_impl(
             f"Error decoding JSON from file_metadata table for '{normalized_filepath_str}': {e_json}",
             exc_info=True,
         )
-        response_message = f"Error decoding stored file metadata."
+        response_message = "Error decoding stored file metadata."
     except Exception as e:
         logger.error(
             f"Unexpected error viewing file metadata for '{normalized_filepath_str}': {e}",

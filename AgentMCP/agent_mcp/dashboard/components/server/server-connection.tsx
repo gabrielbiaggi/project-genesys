@@ -1,14 +1,12 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useState } from "react"
 import { Server, Wifi, WifiOff, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useServerStore } from "@/lib/stores/server-store"
-import { ProjectPicker } from "./project-picker"
 import { ManualServerInput } from "./manual-server-input"
-import { config } from "@/lib/config"
 
 export function ServerConnection() {
   const { 
@@ -16,40 +14,21 @@ export function ServerConnection() {
     activeServerId, 
     setActiveServer, 
     autoDetectServers, 
-    clearPersistedData,
     removeServer,
-    isConnecting 
   } = useServerStore()
-  const activeServer = servers.find(s => s.id === activeServerId)
   const [isDetecting, setIsDetecting] = useState(false)
 
   const connectedServers = servers.filter(s => s.status === 'connected')
   const disconnectedServers = servers.filter(s => s.status !== 'connected')
 
-  // Auto-detection is now manual - users need to click the button
-  // useEffect(() => {
-  //   if (config.autoDetect.enabled && !activeServerId && !isConnecting) {
-  //     handleAutoDetect()
-  //   }
-  // }, [])
-
   const handleAutoDetect = async () => {
     setIsDetecting(true)
     try {
-      const detectedServer = await autoDetectServers()
-      if (detectedServer && config.autoDetect.enabled) {
-        await setActiveServer(detectedServer.id)
-      }
+      await autoDetectServers()
     } catch (error) {
       console.error('Auto-detection failed:', error)
     } finally {
       setIsDetecting(false)
-    }
-  }
-
-  const handleClearData = () => {
-    if (confirm('This will clear all saved server configurations and reset to defaults. Continue?')) {
-      clearPersistedData()
     }
   }
 

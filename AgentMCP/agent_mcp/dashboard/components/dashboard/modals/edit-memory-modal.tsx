@@ -18,7 +18,7 @@ import type { Memory } from '@/lib/api'
 
 interface EditMemoryData {
   context_key: string
-  context_value: any
+  context_value: unknown // Mudar para unknown
   description?: string
 }
 
@@ -79,7 +79,7 @@ export function EditMemoryModal({ memory, open, onOpenChange, onSaveMemory }: Ed
     }
 
     // Validate JSON
-    let parsedValue: any
+    let parsedValue: unknown // Mudar para unknown
     try {
       // If empty, use empty string
       if (!formData.context_value.trim()) {
@@ -87,7 +87,7 @@ export function EditMemoryModal({ memory, open, onOpenChange, onSaveMemory }: Ed
       } else {
         parsedValue = JSON.parse(formData.context_value)
       }
-    } catch (error) {
+    } catch { // Remover 'error' não utilizado
       setJsonError('Invalid JSON format')
       return
     }
@@ -203,7 +203,7 @@ export function EditMemoryModal({ memory, open, onOpenChange, onSaveMemory }: Ed
           {hasChanges && (
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
               <div className="text-xs text-blue-600 font-medium">
-                Changes detected - Click "Save Changes" to apply
+                Changes detected - Click &quot;Save Changes&quot; to apply
               </div>
             </div>
           )}

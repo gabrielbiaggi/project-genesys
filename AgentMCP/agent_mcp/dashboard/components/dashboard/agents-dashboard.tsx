@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { 
   Users, PowerOff, Clock, AlertCircle, CheckCircle2, Shield, Cpu, Database, Network, Terminal,
   Search, Plus, MoreVertical, Eye, RefreshCw, Copy
@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiClient, Agent, Task } from "@/lib/api"
@@ -18,6 +17,8 @@ import { useDataStore } from "@/lib/stores/data-store"
 import { cn } from "@/lib/utils"
 import { AgentDetailsPanel } from "./agent-details-panel"
 import { TaskDetailsDialog } from "./task-details-dialog"
+import { useToast } from "@/hooks/use-toast"
+import { useAuthStore } from "@/lib/stores/auth-store" // Importar o auth store
 
 
 const StatusDot = React.memo(({ status }: { status: Agent['status'] }) => {
@@ -35,6 +36,7 @@ const StatusDot = React.memo(({ status }: { status: Agent['status'] }) => {
     )} />
   )
 })
+StatusDot.displayName = 'StatusDot'
 
 const AgentTypeIcon = React.memo(({ agentId }: { agentId: string }) => {
   const getIcon = () => {
@@ -48,12 +50,25 @@ const AgentTypeIcon = React.memo(({ agentId }: { agentId: string }) => {
   const Icon = getIcon()
   return <Icon className="h-4 w-4 text-muted-foreground" />
 })
+AgentTypeIcon.displayName = 'AgentTypeIcon'
+
+// Nova interface para os dados do agente vindos da nossa API
+export interface AgentData {
+  agent_id: string;
+  status: 'running' | 'pending' | 'terminated' | 'failed' | 'created' | 'system';
+  capabilities: string[];
+  created_at: string;
+  current_task: string | null;
+  color: string;
+  auth_token?: string; // Add this line
+}
+
 
 const CompactAgentRow = React.memo(({ agent, onTerminate, onSelect, onTaskClick }: { 
-  agent: Agent, 
+  agent: AgentData, // Usar a nova interface
   onTerminate: (id: string) => void, 
-  onSelect: (agent: Agent) => void,
-  onTaskClick: (task: Task) => void 
+  onSelect: (agent: AgentData) => void,
+  onTaskClick: (task: Task) => void // Simplificado por enquanto
 }) => {
   const { getAgentTasks } = useDataStore()
   
@@ -217,6 +232,7 @@ const CompactAgentRow = React.memo(({ agent, onTerminate, onSelect, onTaskClick 
     </TableRow>
   )
 })
+CompactAgentRow.displayName = 'CompactAgentRow'
 
 const StatsCard = ({ icon: Icon, label, value, change, trend }: {
   icon: React.ComponentType<{ className?: string }>
@@ -247,97 +263,76 @@ const StatsCard = ({ icon: Icon, label, value, change, trend }: {
     </div>
   </div>
 )
+StatsCard.displayName = 'StatsCard'
 
 interface CreateAgentData {
   agent_id: string;
+  task_ids: string[]; // Campo obrigatório
   capabilities?: string[];
-  working_directory?: string;
+  prompt_template?: string; // Campo opcional
 }
 
 const CreateAgentModal = ({ onCreateAgent }: { onCreateAgent: (data: CreateAgentData) => void }) => {
   const [open, setOpen] = useState(false)
   const [formData, setFormData] = useState({
     agent_id: '',
+    task_ids: '', // Agora é uma string para o input
     capabilities: '',
-    working_directory: ''
+    prompt_template: 'worker_with_rag' // Valor padrão
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.agent_id.trim()) return
+    if (!formData.agent_id.trim() || !formData.task_ids.trim()) return
 
-    const capabilities = formData.capabilities
-      .split(',')
-      .map(c => c.trim())
-      .filter(c => c.length > 0)
+    const capabilities = formData.capabilities.split(',').map(c => c.trim()).filter(Boolean)
+    const task_ids = formData.task_ids.split(',').map(t => t.trim()).filter(Boolean)
 
     onCreateAgent({
       agent_id: formData.agent_id.trim(),
+      task_ids,
       capabilities: capabilities.length > 0 ? capabilities : undefined,
-      working_directory: formData.working_directory.trim() || undefined
+      prompt_template: formData.prompt_template || undefined
     })
 
-    setFormData({ agent_id: '', capabilities: '', working_directory: '' })
+    setFormData({ agent_id: '', task_ids: '', capabilities: '', prompt_template: 'worker_with_rag' })
     setOpen(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all duration-200">
+        <Button size="sm" className="bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4 mr-1.5" />
-          Deploy
+          Deploy Agent
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md bg-card border-border text-card-foreground">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-lg">Deploy Agent</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            Configure a new agent for deployment.
+          <DialogTitle>Deploy New Agent</DialogTitle>
+          <DialogDescription>
+            Configure um novo agente e atribua tarefas iniciais.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">
-              Agent ID
-            </label>
-            <Input
-              value={formData.agent_id}
-              onChange={(e) => setFormData(prev => ({ ...prev, agent_id: e.target.value }))}
-              placeholder="worker-analytics-01"
-              className="bg-background border-border text-foreground"
-              required
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">
-              Capabilities
-            </label>
-            <Textarea
-              value={formData.capabilities}
-              onChange={(e) => setFormData(prev => ({ ...prev, capabilities: e.target.value }))}
-              placeholder="data-analysis, file-ops, web-search"
-              className="bg-background border-border text-foreground h-20 resize-none"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">
-              Working Directory
-            </label>
-            <Input
-              value={formData.working_directory}
-              onChange={(e) => setFormData(prev => ({ ...prev, working_directory: e.target.value }))}
-              placeholder="/workspace/analytics"
-              className="bg-background border-border text-foreground font-mono text-sm"
-            />
-          </div>
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} size="sm">
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" className="bg-primary hover:bg-primary/90 shadow-lg hover:shadow-primary/25 transition-all">
-              Deploy
-            </Button>
+          {/* Input para Agent ID */}
+          <Input value={formData.agent_id} onChange={(e) => setFormData(prev => ({ ...prev, agent_id: e.target.value }))} placeholder="worker-researcher-01" required />
+          {/* Input para Task IDs */}
+          <Input value={formData.task_ids} onChange={(e) => setFormData(prev => ({ ...prev, task_ids: e.target.value }))} placeholder="task-001, task-002" required />
+          {/* Input para Capabilities */}
+          <Input value={formData.capabilities} onChange={(e) => setFormData(prev => ({ ...prev, capabilities: e.target.value }))} placeholder="web-search, file-read" />
+          {/* Select para Prompt Template */}
+          <Select value={formData.prompt_template} onValueChange={(value) => setFormData(prev => ({ ...prev, prompt_template: value }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="worker_with_rag">Worker with RAG</SelectItem>
+              <SelectItem value="basic_worker">Basic Worker</SelectItem>
+              <SelectItem value="frontend_worker">Frontend Worker</SelectItem>
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit">Deploy</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -360,54 +355,39 @@ const onRender = (id: string, phase: "mount" | "update" | "nested-update", actua
 export function AgentsDashboard() {
   const { servers, activeServerId } = useServerStore()
   const activeServer = servers.find(s => s.id === activeServerId)
-  const { data, loading, error, fetchAllData, refreshData, getActiveAgents, getIdleAgentsForCleanup } = useDataStore()
+  const { toast } = useToast()
+  const { adminToken } = useAuthStore() // Obter token do store
+  
+  const [agents, setAgents] = useState<AgentData[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<AgentData | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   
-  // Get filtered agents (only active or new agents)
-  const allAgents = data?.agents || []
-  const agents = getActiveAgents()
-  const isConnected = !!activeServerId && activeServer?.status === 'connected'
-
-  // Fetch data on mount and when server changes
-  useEffect(() => {
-    if (activeServerId && activeServer?.status === 'connected') {
-      fetchAllData()
+  const fetchAgents = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const data = await apiClient.request<AgentData[]>('/api/dashboard/agents')
+      setAgents(data)
+      setError(null)
+    } catch (err) {
+      setError("Falha ao buscar agentes do servidor.")
+      console.error(err)
+    } finally {
+      setIsLoading(false)
     }
-  }, [activeServerId, activeServer?.status, fetchAllData])
+  }, [])
 
-  // Automatic agent cleanup - check every 2 minutes
   useEffect(() => {
-    if (!isConnected) return
+    fetchAgents()
+    const interval = setInterval(fetchAgents, 10000) // Atualiza a cada 10 segundos
+    return () => clearInterval(interval)
+  }, [fetchAgents])
 
-    const cleanupInterval = setInterval(async () => {
-      const idleAgents = getIdleAgentsForCleanup()
-      
-      if (idleAgents.length > 0) {
-        console.log(`🧹 Found ${idleAgents.length} idle agents for cleanup:`, idleAgents.map(a => a.agent_id))
-        
-        // Terminate each idle agent
-        for (const agent of idleAgents) {
-          try {
-            await handleTerminateAgent(agent.agent_id)
-            console.log(`✅ Terminated idle agent: ${agent.agent_id}`)
-          } catch (error) {
-            console.error(`❌ Failed to terminate idle agent ${agent.agent_id}:`, error)
-          }
-        }
-        
-        // Refresh data after cleanup
-        await refreshData()
-      }
-    }, 2 * 60 * 1000) // Check every 2 minutes
-
-    return () => clearInterval(cleanupInterval)
-  }, [isConnected, getIdleAgentsForCleanup, refreshData])
-  
-  
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task)
     setTaskDialogOpen(true)
@@ -426,27 +406,58 @@ export function AgentsDashboard() {
     pending: agents.filter(a => a.status === 'pending').length,
     failed: agents.filter(a => a.status === 'failed').length,
     // Also track cleanup statistics
-    totalInSystem: allAgents.length,
-    idleForCleanup: getIdleAgentsForCleanup().length
+    totalInSystem: agents.length, // Assuming all fetched agents are in system
+    idleForCleanup: agents.filter(a => a.status === 'pending').length // Assuming pending agents are candidates for cleanup
   }
 
   const handleCreateAgent = async (data: CreateAgentData) => {
+    if (!adminToken) {
+      toast({ title: "Não Autenticado", description: "Faça o login de administrador para criar agentes.", variant: "destructive" });
+      return;
+    }
     try {
-      await apiClient.createAgent(data)
-    } catch (error) {
-      console.error('Failed to create agent:', error)
+      await apiClient.request<{ success: boolean; message: string }>('/api/dashboard/agents', {
+        method: 'POST',
+        body: JSON.stringify({ ...data, token: adminToken })
+      })
+      toast({ title: "Sucesso", description: `Agente ${data.agent_id} criado.` })
+      fetchAgents()
+    } catch (error: unknown) { // Tipado como unknown
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro.'
+      toast({
+        title: "Erro ao Criar Agente",
+        description: errorMessage,
+        variant: 'destructive',
+      })
     }
   }
 
   const handleTerminateAgent = async (agentId: string) => {
+    if (!adminToken) {
+      toast({ title: "Não Autenticado", description: "Faça o login de administrador para terminar agentes.", variant: "destructive" });
+      return;
+    }
     try {
-      await apiClient.terminateAgent(agentId)
-    } catch (error) {
-      console.error('Failed to terminate agent:', error)
+      await apiClient.request<void>('/api/terminate-agent', {
+        method: 'POST',
+        body: JSON.stringify({ agent_id: agentId, token: adminToken }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      toast({ title: "Sucesso", description: `Agente ${agentId} terminado.` })
+      fetchAgents()
+    } catch (error: unknown) { // Tipado como unknown
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro.'
+      toast({
+        title: "Erro ao Terminar Agente",
+        description: errorMessage,
+        variant: 'destructive',
+      })
     }
   }
 
-  if (!isConnected) {
+  if (!activeServerId || activeServer?.status !== 'connected') {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -460,7 +471,7 @@ export function AgentsDashboard() {
     )
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -502,11 +513,7 @@ export function AgentsDashboard() {
             <div className="w-2 h-2 bg-primary rounded-full mr-2 animate-pulse" />
             {activeServer?.name}
           </Badge>
-          {data?.timestamp && (
-            <span className="text-xs text-muted-foreground">
-              Last updated: {new Date(data.timestamp).toLocaleTimeString()}
-            </span>
-          )}
+          {/* Removed timestamp as it's not directly available from the new API */}
           {stats.idleForCleanup > 0 && (
             <Badge variant="outline" className="text-xs bg-orange-500/15 text-orange-600 border-orange-500/30 font-medium">
               {stats.idleForCleanup} pending cleanup
@@ -515,11 +522,11 @@ export function AgentsDashboard() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={refreshData}
-            disabled={loading}
+            onClick={fetchAgents}
+            disabled={isLoading}
             className="text-xs"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} />
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isLoading && "animate-spin")} />
             Refresh
           </Button>
           <CreateAgentModal onCreateAgent={handleCreateAgent} />

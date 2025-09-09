@@ -17,66 +17,41 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
-import click
-import uvicorn  # For running the Starlette app in SSE mode
-import anyio  # For running async functions and task groups
+
 import os
 import sys
+from pathlib import Path
 import json
 import sqlite3
 from typing import Optional
-from pathlib import Path
-from dotenv import load_dotenv, dotenv_values
 
-# Load environment variables before importing other modules
-# Try explicit paths
+import click
+from agent_mcp.core.config import logger
 
-# Get the directory of the current script
-script_dir = Path(__file__).resolve().parent
+# --- Configuração Inicial do Ambiente ---
+# Adiciona o diretório pai (AgentMCP) ao sys.path para permitir importações relativas
+# como `from agent_mcp.core...` antes mesmo de o pacote ser instalado.
+# Isso é crucial para rodar o CLI diretamente do código-fonte.
+project_root = Path(__file__).resolve().parents[2]  # Sobe dois níveis para a raiz do projeto (Genesys)
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-# Try parent directories
-for parent_level in range(3):  # Go up to 3 levels
-    env_path = script_dir / (".." * parent_level) / ".env"
-    env_path = env_path.resolve()
-    print(f"Trying to load .env from: {env_path}")
-    if env_path.exists():
-        print(f"Found .env at: {env_path}")
-        env_vars = dotenv_values(str(env_path))
-        print(f"Loaded variables: {list(env_vars.keys())}")
-        print(
-            f"OPENAI_API_KEY from file: {env_vars.get('OPENAI_API_KEY', 'NOT FOUND')[:10]}..."
-        )
-        # Manually set the environment variables
-        for key, value in env_vars.items():
-            os.environ[key] = value
-        # Check if API key was set (without logging the actual key)
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if api_key:
-            print("OPENAI_API_KEY successfully loaded from environment")
-        else:
-            print("OPENAI_API_KEY not found in environment")
-        break
 
-# Also try normal load_dotenv in case
-load_dotenv()
+# --- Configuração de Caminho e Variáveis de Ambiente ---
+# É CRÍTICO definir a variável de ambiente MCP_PROJECT_DIR *antes* de importar
+# qualquer outro módulo do projeto, pois o logger e outras configurações dependem dela.
+# O valor padrão é o diretório atual, mas será sobrescrito pela opção --project-dir.
+os.environ.setdefault("MCP_PROJECT_DIR", os.path.abspath("."))
 
-# Project-specific imports
-# Ensure core.config (and thus logging) is initialized early.
-from .core.config import (
-    logger,
-    CONSOLE_LOGGING_ENABLED,
-    enable_console_logging,
-)  # Logger is initialized in config.py
-from .core import globals as g  # For g.server_running and other globals
+
+# --- Importações do Projeto (depois da configuração do ambiente) ---
+# from .core.config import (
+#     logger,
+# )  # Logger is initialized in config.py
 
 # Import app creation and lifecycle functions
-from .app.main_app import create_app, mcp_app_instance  # mcp_app_instance for stdio
-from .app.server_lifecycle import (
-    start_background_tasks,
-    application_startup,
-    application_shutdown,
-)  # application_startup is called by create_app's on_startup
-from .tui.display import TUIDisplay  # Import TUI display
+# TUI foi removido, não é necessário para a operação em modo de serviço
+# from .tui.display import TUIDisplay
 
 
 def get_admin_token_from_db(project_dir: str) -> Optional[str]:
@@ -189,7 +164,7 @@ def main_cli(
 ):
     """Main entry point for the MCP server CLI."""
     # --- Set Environment Variables from CLI options ---
-    # This is crucial for Uvicorn's factory pattern to work correctly.
+    # O MCP_PROJECT_DIR é a primeira e mais importante variável a ser definida.
     os.environ["MCP_PROJECT_DIR"] = project_dir
 
     # We can pass other CLI flags via environment variables if needed
@@ -203,90 +178,37 @@ def main_cli(
     if admin_token_cli:
         os.environ["MCP_ADMIN_TOKEN_CLI"] = admin_token_cli
 
-    # The rest of the logic from the original main_cli remains,
-    # but the actual server run will now be handled by Uvicorn.
-    # We keep the setup logic here to ensure it runs before Uvicorn starts.
+    # O resto da lógica da main_cli original permanece,
+    # mas a execução real do servidor agora será tratada pelo Uvicorn.
+    # Mantemos a lógica de configuração aqui para garantir que ela seja executada antes do início do Uvicorn.
 
-    # Initial setup logging
-    # Assuming setup_logging is defined elsewhere or will be added.
-    # For now, we'll just log the start of the server.
     logger.info("Starting Agent-MCP Server...")
     logger.info(f"Transport: {transport}, Port: {port}")
     logger.info(f"Project Directory: {project_dir}")
 
-    # The `create_app` factory in `main_app.py` will now read these env vars.
-    # We don't need to call application_startup here anymore because the
-    # Starlette `on_startup` event will trigger it.
+    # A fábrica `create_app` em `main_app.py` agora lerá essas variáveis de ambiente.
+    # Não precisamos mais chamar application_startup aqui porque o
+    # evento `on_startup` do Starlette o acionará.
 
     if transport == "sse":
         # Use uvicorn to run the app defined by the factory `create_app`
         # This is the standard way to run a Starlette/FastAPI app.
         import uvicorn
+
         uvicorn.run(
             "agent_mcp.app.main_app:create_app",
             host="0.0.0.0",
             port=port,
-            factory=True, # Tells uvicorn that the string is a factory function
-            reload=debug, # Enable auto-reload in debug mode
+            factory=True,  # Tells uvicorn that the string is a factory function
+            reload=debug,  # Enable auto-reload in debug mode
         )
     elif transport == "stdio":
-        # The stdio transport logic remains as it is more complex and
-        # tightly coupled with the async event loop.
-        try:
-            anyio.run(
-                main_async_stdio,
-                project_dir,
-                admin_token_cli,
-                debug,
-                no_tui,
-                advanced,
-                git,
-                no_index,
-            )
-        except KeyboardInterrupt:
-            print("\nShutting down gracefully...")
-        finally:
-            # Perform any final cleanup if necessary
-            pass
+        # A lógica stdio foi removida pois não é relevante para a execução como serviço.
+        logger.error("Transport 'stdio' is no longer supported for service mode.")
+        sys.exit(1)
 
 
-async def main_async_stdio(
-    project_dir: str,
-    admin_token_cli: Optional[str],
-    debug: bool,
-    no_tui: bool,
-    advanced: bool,
-    git: bool,
-    no_index: bool,
-):
-    """
-    Main async function for stdio transport.
-    This function is designed to be run with `anyio.run` and manages the
-    lifecycle of the MCP server for stdio.
-    """
-    # This is where the terminal UI would be managed.
-    # For simplicity in this refactor, we are focusing on the SSE server part.
-    # The original TUI logic can be re-integrated here if needed.
-
-    # If not using TUI, just run the server part.
-    await application_startup(project_dir, admin_token_cli)
-    
-    async with anyio.create_task_group() as tg:
-        g.main_task_group = tg
-        await start_background_tasks(tg) # Start RAG indexer etc.
-
-        # The stdio server part
-        app = mcp_app_instance # From main_app
-        # Setup standard I/O streams for MCP communication
-        # This part is complex and specific to stdio transport.
-        # It involves creating async streams from sys.stdin and sys.stdout.
-        # For the purpose of this fix, we assume this logic exists and is correct.
-        # (Example from original code might be needed here if stdio is a primary use case)
-        logger.info("Running in stdio mode. Waiting for client on stdin/stdout.")
-        # Placeholder for actual stdio server run logic
-        # await app.run(...)
-        await anyio.sleep_forever() # Keep running until cancelled
-
+# A função main_async_stdio foi removida pois não é mais necessária.
 
 # This allows running `python -m mcp_server_src.cli --port ...`
 if __name__ == "__main__":

@@ -3,12 +3,11 @@
 import React, { useState } from "react"
 import { Server, Wifi, WifiOff, Plus, RefreshCw, Trash2, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useServerStore } from "@/lib/stores/server-store"
 import { ManualServerInput } from "./manual-server-input"
-import { config } from "@/lib/config"
 
 export function ServerManagementModal() {
   const { 
@@ -19,7 +18,6 @@ export function ServerManagementModal() {
     clearPersistedData,
     removeServer,
     refreshAllServers,
-    isConnecting 
   } = useServerStore()
   
   const [isOpen, setIsOpen] = useState(false)

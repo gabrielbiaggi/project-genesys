@@ -19,7 +19,7 @@ import { SmartValueEditor } from './smart-value-editor'
 
 interface CreateMemoryData {
   context_key: string
-  context_value: any
+  context_value: unknown
   description?: string
 }
 
@@ -33,11 +33,11 @@ export function CreateMemoryModal({ onCreateMemory, trigger }: CreateMemoryModal
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     context_key: '',
-    context_value: '',
+    context_value: '' as unknown,
     description: ''
   })
 
-  const handleValueChange = (value: any) => {
+  const handleValueChange = (value: unknown) => {
     setFormData(prev => ({ ...prev, context_value: value }))
   }
 

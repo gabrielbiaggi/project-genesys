@@ -19,7 +19,6 @@ from ..db.actions.agent_actions_db import log_agent_action_to_db
 from ..features.task_placement.validator import validate_task_placement
 from ..features.task_placement.suggestions import (
     format_suggestions_for_agent,
-    format_override_reason,
     should_escalate_to_admin,
 )
 from ..features.rag.indexing import index_task_data
@@ -89,10 +88,10 @@ async def _send_escape_to_agent(agent_id: str) -> bool:
                 )
                 if result.returncode != 0:
                     logger.error(
-                        f"Failed to send Escape {i+1}/4 to agent {agent_id}: {result.stderr}"
+                        f"Failed to send Escape {i + 1}/4 to agent {agent_id}: {result.stderr}"
                     )
                     return False
-                logger.debug(f"Sent Escape {i+1}/4 to agent {agent_id}")
+                logger.debug(f"Sent Escape {i + 1}/4 to agent {agent_id}")
                 if i < 3:  # Don't sleep after the last one
                     time.sleep(1)
 
@@ -271,7 +270,7 @@ async def _launch_testing_agent_for_completed_task(
             wait_for_command_completion(setup_delay)
 
             # Verify working directory
-            verify_command = f"echo 'Working directory:' && pwd"
+            verify_command = "echo 'Working directory:' && pwd"
             if send_command_to_session(session_name, verify_command):
                 logger.info(
                     f"✅ Sent directory verification to testing agent '{testing_agent_id}'"
@@ -526,7 +525,7 @@ def _analyze_task_dependencies(
     if isinstance(depends_on, str):
         try:
             depends_on = json.loads(depends_on)
-        except:
+        except json.JSONDecodeError:
             depends_on = []
 
     analysis = {
@@ -566,7 +565,7 @@ def _analyze_task_dependencies(
         if isinstance(other_deps, str):
             try:
                 other_deps = json.loads(other_deps)
-            except:
+            except json.JSONDecodeError:
                 other_deps = []
 
         if task_id in other_deps:
@@ -592,7 +591,6 @@ def _calculate_task_health_metrics(tasks: List[Dict[str, Any]]) -> Dict[str, Any
     status_counts = {}
     priority_counts = {}
     blocked_count = 0
-    overdue_count = 0
     stale_count = 0
 
     current_time = datetime.datetime.now()
@@ -611,7 +609,7 @@ def _calculate_task_health_metrics(tasks: List[Dict[str, Any]]) -> Dict[str, Any
         if isinstance(deps, str):
             try:
                 deps = json.loads(deps)
-            except:
+            except json.JSONDecodeError:
                 deps = []
 
         if deps and status == "pending":
@@ -627,7 +625,7 @@ def _calculate_task_health_metrics(tasks: List[Dict[str, Any]]) -> Dict[str, Any
                 days_since_update = (current_time - updated_time).days
                 if days_since_update > 7 and status in ["in_progress", "pending"]:
                     stale_count += 1
-            except:
+            except (ValueError, TypeError):
                 pass
 
     # Calculate health score (0-100)
@@ -662,7 +660,9 @@ def _calculate_task_health_metrics(tasks: List[Dict[str, Any]]) -> Dict[str, Any
             else (
                 "good"
                 if health_score >= 60
-                else "needs_attention" if health_score >= 40 else "critical"
+                else "needs_attention"
+                if health_score >= 40
+                else "critical"
             )
         ),
     }
@@ -811,9 +811,9 @@ async def _create_unassigned_tasks(
 
         # Build response
         response_parts = [
-            f"✅ **Unassigned Tasks Created**",
+            "✅ **Unassigned Tasks Created**",
             f"   Tasks Created: {len(created_tasks)}",
-            f"   Status: Unassigned",
+            "   Status: Unassigned",
             "",
         ]
 
@@ -932,7 +932,7 @@ async def _assign_to_existing_tasks(
         # Build response
         task_titles = [task["title"] for task in found_tasks]
         response_parts = [
-            f"✅ **Tasks Assigned Successfully**",
+            "✅ **Tasks Assigned Successfully**",
             f"   Agent: {target_agent_id}",
             f"   Tasks Assigned: {len(task_ids)}",
             "",
@@ -1052,7 +1052,7 @@ async def _create_and_assign_multiple_tasks(
 
         # Build response
         response_parts = [
-            f"✅ **Multiple Tasks Created and Assigned**",
+            "✅ **Multiple Tasks Created and Assigned**",
             f"   Agent: {target_agent_id}",
             f"   Tasks Created: {len(created_tasks)}",
             "",
@@ -1110,7 +1110,7 @@ async def assign_task_tool_impl(
     validate_agent_workload = arguments.get(
         "validate_agent_workload", True
     )  # Check agent capacity
-    auto_schedule = arguments.get(
+    auto_schedule = arguments.get(  # noqa: F841
         "auto_schedule", False
     )  # Auto-schedule based on dependencies
     coordination_notes = arguments.get(
@@ -1197,7 +1197,7 @@ async def assign_task_tool_impl(
                 return [
                     mcp_types.TextContent(
                         type="text",
-                        text=f"Error: Task {i+1} must have 'title' and 'description' fields.",
+                        text=f"Error: Task {i + 1} must have 'title' and 'description' fields.",
                     )
                 ]
     else:
@@ -1491,7 +1491,7 @@ async def assign_task_tool_impl(
                 {
                     "timestamp": created_at_iso,
                     "author": "system",
-                    "content": f"🧠 Smart assignment: Parent task suggested based on content similarity",
+                    "content": "🧠 Smart assignment: Parent task suggested based on content similarity",
                 }
             )
 
@@ -1592,7 +1592,7 @@ async def assign_task_tool_impl(
         )
 
         # Build comprehensive response
-        response_parts = [f"✅ **Task Assigned Successfully**"]
+        response_parts = ["✅ **Task Assigned Successfully**"]
         response_parts.append(f"   Task ID: {new_task_id}")
         response_parts.append(f"   Title: {task_title}")
         response_parts.append(f"   Agent: {target_agent_id}")
@@ -1615,7 +1615,9 @@ async def assign_task_tool_impl(
             capacity_icon = (
                 "🟢"
                 if workload_analysis["capacity_status"] == "available"
-                else "🟡" if workload_analysis["capacity_status"] == "busy" else "🔴"
+                else "🟡"
+                if workload_analysis["capacity_status"] == "busy"
+                else "🔴"
             )
             response_parts.append(
                 f"👤 **Agent Workload:** {capacity_icon} {workload_analysis['capacity_status'].title()}"
@@ -1978,7 +1980,7 @@ async def update_task_status_tool_impl(
     cascade_to_children = arguments.get(
         "cascade_to_children", False
     )  # Cascade status to child tasks
-    validate_dependencies = arguments.get(
+    validate_dependencies = arguments.get(  # noqa: F841
         "validate_dependencies", True
     )  # Validate dependency constraints
 
@@ -2071,7 +2073,7 @@ async def update_task_status_tool_impl(
                         new_status,
                         requesting_agent_id,
                         is_admin_request,
-                        f"Auto-cascaded from parent task status change",
+                        "Auto-cascaded from parent task status change",
                         None,
                         None,
                         None,
@@ -2124,7 +2126,7 @@ async def update_task_status_tool_impl(
                                         "in_progress",
                                         requesting_agent_id,
                                         is_admin_request,
-                                        f"Auto-advanced: all dependencies completed",
+                                        "Auto-advanced: all dependencies completed",
                                         None,
                                         None,
                                         None,
@@ -2199,7 +2201,7 @@ async def update_task_status_tool_impl(
             )
 
             if failed_updates:
-                response_parts.append(f"Failed updates:")
+                response_parts.append("Failed updates:")
                 for fail in failed_updates[:3]:  # Limit to first 3 failures
                     response_parts.append(f"  - {fail['error']}")
                 if len(failed_updates) > 3:
@@ -2441,7 +2443,9 @@ async def view_tasks_tool_impl(
                 else (
                     "🟡"
                     if health_status == "good"
-                    else "🟠" if health_status == "needs_attention" else "🔴"
+                    else "🟠"
+                    if health_status == "needs_attention"
+                    else "🔴"
                 )
             )
 
@@ -2499,7 +2503,7 @@ async def view_tasks_tool_impl(
                 f"Continue: view_tasks(start_after='{last_task_id}', max_tokens={max_tokens})"
             )
             if not summary_mode:
-                response_parts.append(f"Overview: view_tasks(summary_mode=true)")
+                response_parts.append("Overview: view_tasks(summary_mode=true)")
         else:
             response_parts.append(f"--- All {tasks_included} matching tasks shown ---")
 
@@ -2569,7 +2573,7 @@ def _format_task_detailed(task: Dict[str, Any]) -> str:
     if isinstance(child_tasks_val, str):
         try:
             child_tasks_val = json.loads(child_tasks_val or "[]")
-        except:
+        except json.JSONDecodeError:
             child_tasks_val = ["Error decoding child_tasks"]
     if child_tasks_val:
         parts.append(f"Child tasks: {', '.join(child_tasks_val)}")
@@ -2578,7 +2582,7 @@ def _format_task_detailed(task: Dict[str, Any]) -> str:
     if isinstance(notes_val, str):
         try:
             notes_val = json.loads(notes_val or "[]")
-        except:
+        except json.JSONDecodeError:
             notes_val = [{"author": "System", "content": "Error decoding notes"}]
     if notes_val:
         parts.append("Notes:")
@@ -2613,7 +2617,11 @@ def _format_task_with_dependencies(task: Dict[str, Any]) -> str:
         health_icon = (
             "🟢"
             if health == "healthy"
-            else "🟡" if health == "waiting" else "🟠" if health == "warning" else "🔴"
+            else "🟡"
+            if health == "waiting"
+            else "🟠"
+            if health == "warning"
+            else "🔴"
         )
         dep_parts.append(f"   Status: {health_icon} {health}")
 
@@ -2634,7 +2642,7 @@ def _format_task_with_dependencies(task: Dict[str, Any]) -> str:
             dep_parts.append(
                 f"   ✅ Completed: {', '.join(completed_deps[:3])}"
                 + (
-                    f" (+{len(completed_deps)-3} more)"
+                    f" (+{len(completed_deps) - 3} more)"
                     if len(completed_deps) > 3
                     else ""
                 )
@@ -2643,13 +2651,17 @@ def _format_task_with_dependencies(task: Dict[str, Any]) -> str:
         if blocking_deps:
             dep_parts.append(
                 f"   🔴 Blocking: {', '.join(blocking_deps[:3])}"
-                + (f" (+{len(blocking_deps)-3} more)" if len(blocking_deps) > 3 else "")
+                + (
+                    f" (+{len(blocking_deps) - 3} more)"
+                    if len(blocking_deps) > 3
+                    else ""
+                )
             )
 
         if missing_deps:
             dep_parts.append(
                 f"   ❌ Missing: {', '.join(missing_deps[:3])}"
-                + (f" (+{len(missing_deps)-3} more)" if len(missing_deps) > 3 else "")
+                + (f" (+{len(missing_deps) - 3} more)" if len(missing_deps) > 3 else "")
             )
 
         # What this task blocks
@@ -2657,7 +2669,7 @@ def _format_task_with_dependencies(task: Dict[str, Any]) -> str:
         if blocks_tasks:
             dep_parts.append(
                 f"   🔒 Blocks: {', '.join(blocks_tasks[:3])}"
-                + (f" (+{len(blocks_tasks)-3} more)" if len(blocks_tasks) > 3 else "")
+                + (f" (+{len(blocks_tasks) - 3} more)" if len(blocks_tasks) > 3 else "")
             )
 
         task_text += "\n".join(dep_parts)
@@ -2701,7 +2713,7 @@ def _analyze_agent_workload(cursor, agent_id: str) -> Dict[str, Any]:
                 days_stale = (current_time - updated_time).days
                 if days_stale > 3:  # No update in 3+ days
                     stale_tasks += 1
-            except:
+            except (ValueError, TypeError):
                 pass
 
     # Simple capacity assessment
@@ -2809,7 +2821,7 @@ def _suggest_optimal_parent_task(
                     "status": task["status"],
                     "priority": task["priority"],
                     "similarity_score": round(combined_score, 3),
-                    "reason": f"Similar content ({int(combined_score*100)}% match)",
+                    "reason": f"Similar content ({int(combined_score * 100)}% match)",
                 }
             )
 
@@ -3123,7 +3135,7 @@ async def bulk_task_operations_tool_impl(
         for i, op in enumerate(operations):
             if not isinstance(op, dict):
                 results.append(
-                    f"Operation {i+1}: Invalid operation format (must be object)"
+                    f"Operation {i + 1}: Invalid operation format (must be object)"
                 )
                 continue
 
@@ -3132,7 +3144,7 @@ async def bulk_task_operations_tool_impl(
 
             if not task_id or not operation_type:
                 results.append(
-                    f"Operation {i+1}: Missing required fields 'type' and 'task_id'"
+                    f"Operation {i + 1}: Missing required fields 'type' and 'task_id'"
                 )
                 continue
 
@@ -3140,7 +3152,7 @@ async def bulk_task_operations_tool_impl(
             cursor.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
             task_row = cursor.fetchone()
             if not task_row:
-                results.append(f"Operation {i+1}: Task '{task_id}' not found")
+                results.append(f"Operation {i + 1}: Task '{task_id}' not found")
                 continue
 
             task_data = dict(task_row)
@@ -3151,7 +3163,7 @@ async def bulk_task_operations_tool_impl(
                 and not is_admin_request
             ):
                 results.append(
-                    f"Operation {i+1}: Unauthorized - can only modify own tasks"
+                    f"Operation {i + 1}: Unauthorized - can only modify own tasks"
                 )
                 continue
 
@@ -3162,7 +3174,7 @@ async def bulk_task_operations_tool_impl(
 
                     if not new_status:
                         results.append(
-                            f"Operation {i+1}: Missing 'status' for update_status operation"
+                            f"Operation {i + 1}: Missing 'status' for update_status operation"
                         )
                         continue
 
@@ -3175,7 +3187,7 @@ async def bulk_task_operations_tool_impl(
                     ]
                     if new_status not in valid_statuses:
                         results.append(
-                            f"Operation {i+1}: Invalid status '{new_status}'"
+                            f"Operation {i + 1}: Invalid status '{new_status}'"
                         )
                         continue
 
@@ -3218,7 +3230,7 @@ async def bulk_task_operations_tool_impl(
                         g.tasks[task_id]["notes"] = current_notes
 
                     results.append(
-                        f"Operation {i+1}: Task '{task_id}' status updated to '{new_status}'"
+                        f"Operation {i + 1}: Task '{task_id}' status updated to '{new_status}'"
                     )
 
                 elif operation_type == "update_priority":
@@ -3230,7 +3242,7 @@ async def bulk_task_operations_tool_impl(
                         "high",
                     ]:
                         results.append(
-                            f"Operation {i+1}: Invalid priority '{new_priority}'"
+                            f"Operation {i + 1}: Invalid priority '{new_priority}'"
                         )
                         continue
 
@@ -3244,7 +3256,7 @@ async def bulk_task_operations_tool_impl(
                         g.tasks[task_id]["updated_at"] = updated_at_iso
 
                     results.append(
-                        f"Operation {i+1}: Task '{task_id}' priority updated to '{new_priority}'"
+                        f"Operation {i + 1}: Task '{task_id}' priority updated to '{new_priority}'"
                     )
 
                 elif operation_type == "add_note":
@@ -3252,7 +3264,7 @@ async def bulk_task_operations_tool_impl(
 
                     if not note_content:
                         results.append(
-                            f"Operation {i+1}: Missing 'content' for add_note operation"
+                            f"Operation {i + 1}: Missing 'content' for add_note operation"
                         )
                         continue
 
@@ -3274,14 +3286,14 @@ async def bulk_task_operations_tool_impl(
                         g.tasks[task_id]["notes"] = current_notes
                         g.tasks[task_id]["updated_at"] = updated_at_iso
 
-                    results.append(f"Operation {i+1}: Note added to task '{task_id}'")
+                    results.append(f"Operation {i + 1}: Note added to task '{task_id}'")
 
                 elif operation_type == "reassign" and is_admin_request:
                     new_assigned_to = op.get("assigned_to")
 
                     if not new_assigned_to:
                         results.append(
-                            f"Operation {i+1}: Missing 'assigned_to' for reassign operation"
+                            f"Operation {i + 1}: Missing 'assigned_to' for reassign operation"
                         )
                         continue
 
@@ -3295,22 +3307,22 @@ async def bulk_task_operations_tool_impl(
                         g.tasks[task_id]["updated_at"] = updated_at_iso
 
                     results.append(
-                        f"Operation {i+1}: Task '{task_id}' reassigned to '{new_assigned_to}'"
+                        f"Operation {i + 1}: Task '{task_id}' reassigned to '{new_assigned_to}'"
                     )
 
                 else:
                     if operation_type == "reassign" and not is_admin_request:
                         results.append(
-                            f"Operation {i+1}: Reassign operation requires admin privileges"
+                            f"Operation {i + 1}: Reassign operation requires admin privileges"
                         )
                     else:
                         results.append(
-                            f"Operation {i+1}: Unknown operation type '{operation_type}'"
+                            f"Operation {i + 1}: Unknown operation type '{operation_type}'"
                         )
 
             except Exception as e:
-                results.append(f"Operation {i+1}: Error processing - {str(e)}")
-                logger.error(f"Error in bulk operation {i+1}: {e}", exc_info=True)
+                results.append(f"Operation {i + 1}: Error processing - {str(e)}")
+                logger.error(f"Error in bulk operation {i + 1}: {e}", exc_info=True)
 
         # Log the bulk operation
         log_agent_action_to_db(
@@ -3444,7 +3456,7 @@ async def search_tasks_tool_impl(
             if isinstance(notes, str):
                 try:
                     notes = json.loads(notes)
-                except:
+                except json.JSONDecodeError:
                     notes = []
 
             notes_content = " ".join(
@@ -3495,7 +3507,7 @@ async def search_tasks_tool_impl(
             break
 
         # Format task result
-        task_text = f"\n{i+1}. **{task.get('title', 'Untitled')}** (ID: {task.get('task_id', 'N/A')})"
+        task_text = f"\n{i + 1}. **{task.get('title', 'Untitled')}** (ID: {task.get('task_id', 'N/A')})"
         task_text += f"\n   Status: {task.get('status', 'N/A')} | Priority: {task.get('priority', 'medium')} | Assigned: {task.get('assigned_to', 'None')}"
         task_text += (
             f"\n   Relevance Score: {score:.1f} | Matched: {', '.join(matched_fields)}"
@@ -3521,7 +3533,7 @@ async def search_tasks_tool_impl(
             break
 
     # Add usage tips
-    response_parts.append(f"\n\n💡 Tips:")
+    response_parts.append("\n\n💡 Tips:")
     response_parts.append("• Use view_tasks(task_id='ID') for full task details")
     response_parts.append("• Add status_filter to narrow results")
     response_parts.append("• Use max_results to control response size")
@@ -4042,7 +4054,7 @@ async def delete_task_tool_impl(
 
         # Parse relationships
         child_tasks = json.loads(task_data.get("child_tasks", "[]"))
-        depends_on_tasks = json.loads(task_data.get("depends_on_tasks", "[]"))
+        depends_on_tasks = json.loads(task_data.get("depends_on_tasks", "[]"))  # noqa: F841
 
         # Check for child tasks
         if child_tasks and not force_delete:

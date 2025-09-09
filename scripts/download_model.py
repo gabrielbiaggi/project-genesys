@@ -1,5 +1,6 @@
 # scripts/download_model.py
 import os
+import argparse
 import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -8,19 +9,9 @@ from tqdm import tqdm
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 load_dotenv(dotenv_path=os.path.join(project_root, '.env'))
 
-# --- CONFIGURAÇÃO DO MODELO ---
-# Altere estes valores para baixar um modelo diferente.
-# O repositório no Hugging Face que contém os modelos GGUF quantizados.
-HUGGING_FACE_REPO_ID = os.getenv("HUGGING_FACE_REPO_ID", "mindrage/Llama-3-70B-Instruct-v2-LLaVA-GGUF")
-# O nome exato do arquivo .gguf a ser baixado.
-MODEL_GGUF_FILENAME = os.getenv("MODEL_GGUF_FILENAME", "Llama-3-70B-Instruct-v2-Q4_K_M.gguf")
-
-# --- CONFIGURAÇÃO MULTIMODAL (para LLaVA) ---
-# Se o modelo for multimodal (como o LLaVA), especifique o arquivo do projetor.
-# Deixe como "" se o modelo for apenas texto.
-MULTIMODAL_PROJECTOR_FILENAME = os.getenv("MULTIMODAL_PROJECTOR_FILENAME", "mmproj-Llama-3-70B-Instruct-v2-f16.gguf")
-# --- FIM DA CONFIGURAÇÃO ---
-
+# --- CONFIGURAÇÃO PADRÃO DO MODELO ---
+DEFAULT_REPO_ID = "MaziyarGhasemi/Meta-Llama-3-8B-Instruct-GGUF"
+DEFAULT_FILENAME = "Meta-Llama-3-8B-Instruct.Q4_K_M.gguf"
 
 # Caminho onde os modelos serão salvos
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
@@ -32,15 +23,14 @@ def download_file(filename: str, repo_id: str):
     """
     if not filename:
         return
-        
+
     file_path = os.path.join(MODELS_DIR, filename)
     download_url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
-    
+
     if os.path.exists(file_path):
         print(f"O arquivo '{filename}' já existe em '{MODELS_DIR}'. Download pulado.")
         return
 
-    # Prepara o cabeçalho de autenticação
     hf_token = os.getenv("HUGGING_FACE_HUB_TOKEN")
     headers = {}
     if hf_token:
@@ -78,9 +68,11 @@ def download_file(filename: str, repo_id: str):
             os.remove(file_path)
 
 if __name__ == "__main__":
-    # Baixar o modelo principal
-    download_file(MODEL_GGUF_FILENAME, HUGGING_FACE_REPO_ID)
+    parser = argparse.ArgumentParser(description="Baixar modelo GGUF do Hugging Face.")
+    parser.add_argument("--repo_id", type=str, default=DEFAULT_REPO_ID, help="O ID do repositório no Hugging Face.")
+    parser.add_argument("--filename", type=str, default=DEFAULT_FILENAME, help="O nome do arquivo .gguf a ser baixado.")
     
-    # Baixar o projetor multimodal, se especificado
-    if MULTIMODAL_PROJECTOR_FILENAME:
-        download_file(MULTIMODAL_PROJECTOR_FILENAME, HUGGING_FACE_REPO_ID)
+    args = parser.parse_args()
+    
+    download_file(args.filename, args.repo_id)
+

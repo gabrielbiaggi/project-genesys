@@ -1,13 +1,19 @@
 "use client"
 
-import React, { useState } from 'react'
-import { X, Clock, User, Hash, AlertCircle, CheckCircle2, Activity, MessageSquare, GitBranch, Target, Zap, ChevronRight } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { X, Clock, User, Hash, AlertCircle, CheckCircle2, Activity, MessageSquare, GitBranch, Target, Zap, ChevronRight, Edit, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { Task } from '@/lib/api'
+import { apiClient, Task } from '@/lib/api'
 import { useDataStore } from '@/lib/stores/data-store'
+import { useAuthStore } from '@/lib/stores/auth-store'
+import { useToast } from '@/hooks/use-toast'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 
 interface TaskDetailsPanelProps {
   task: Task | null
@@ -15,12 +21,64 @@ interface TaskDetailsPanelProps {
 }
 
 export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
-  const { data } = useDataStore()
+  const { data, refreshData } = useDataStore()
+  const { adminToken } = useAuthStore()
+  const { toast } = useToast()
+  
   const [activeTab, setActiveTab] = useState<'details' | 'history'>('details')
+  const [isEditing, setIsEditing] = useState(false)
+  const [editableTask, setEditableTask] = useState<Partial<Task>>({})
+
+  useEffect(() => {
+    if (task) {
+      setEditableTask({
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        assigned_to: task.assigned_to,
+      })
+      setIsEditing(false) // Reset edit mode when task changes
+    }
+  }, [task])
+  
+  const handleUpdate = async () => {
+    if (!task || !adminToken) {
+      toast({
+        title: "Erro de Autenticação",
+        description: "Você precisa estar logado como administrador para atualizar tarefas.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      const payload: Partial<Task> & { token: string } = {
+        ...editableTask,
+        token: adminToken,
+      }
+      
+      await apiClient.updateTask(task.task_id, payload)
+      
+      toast({
+        title: "Tarefa Atualizada",
+        description: "As alterações na tarefa foram salvas com sucesso."
+      })
+      
+      setIsEditing(false)
+      refreshData() // Refresh all data to get the latest task state
+    } catch (error) {
+      toast({
+        title: "Erro ao Atualizar",
+        description: error instanceof Error ? error.message : "Não foi possível salvar as alterações.",
+        variant: "destructive"
+      })
+    }
+  }
 
   // Get task history and related actions
   const taskHistory = task ? (data?.actions || []).filter(action => 
-    action.task_id === task.task_id
+    'task_id' in action && action.task_id === task.task_id
   ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) : []
 
   // Get agent info if task is assigned
@@ -105,14 +163,24 @@ export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
                   </Badge>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onClose}
-                className="h-7 w-7 flex-shrink-0 ml-2"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center">
+                {isEditing ? (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>Cancel</Button>
+                    <Button size="sm" onClick={handleUpdate} className="ml-2"><Save className="h-3.5 w-3.5 mr-1.5"/> Save</Button>
+                  </>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}><Edit className="h-3.5 w-3.5 mr-1.5"/> Edit</Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onClose}
+                  className="h-7 w-7 flex-shrink-0 ml-2"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -146,54 +214,107 @@ export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
             <div className="px-4 py-4 space-y-4">
               
               {activeTab === 'details' && (
-                <>
+                <div className="space-y-4">
                   {/* Basic Info */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-muted-foreground text-xs uppercase tracking-wider">Task ID</span>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Task ID</Label>
                       <p className="font-mono text-xs mt-1 break-all">{task.task_id}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground text-xs uppercase tracking-wider">Created</span>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Status</Label>
+                      {isEditing ? (
+                        <Select
+                          value={editableTask.status}
+                          onValueChange={(value: Task['status']) => setEditableTask(prev => ({ ...prev, status: value }))}
+                        >
+                          <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                            <SelectItem value="failed">Failed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm mt-1 capitalize">{task.status.replace('_', ' ')}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Priority</Label>
+                      {isEditing ? (
+                        <Select
+                          value={editableTask.priority}
+                          onValueChange={(value: Task['priority']) => setEditableTask(prev => ({ ...prev, priority: value }))}
+                        >
+                          <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm mt-1 capitalize">{task.priority}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Created</Label>
                       <p className="text-sm mt-1">{new Date(task.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
 
                   {/* Assigned Agent */}
-                  {assignedAgent && (
-                    <div>
-                      <span className="text-muted-foreground text-xs uppercase tracking-wider">Assigned Agent</span>
-                      <div className="bg-muted rounded-lg p-3 mt-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{assignedAgent.agent_id}</span>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Assigned Agent</Label>
+                    {isEditing ? (
+                       <Input 
+                         value={editableTask.assigned_to || ''}
+                         onChange={(e) => setEditableTask(prev => ({ ...prev, assigned_to: e.target.value }))}
+                         placeholder="agent-id"
+                         className="mt-1 h-8 text-xs"
+                       />
+                    ) : (
+                      assignedAgent ? (
+                        <div className="bg-muted rounded-lg p-3 mt-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{assignedAgent.agent_id}</span>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {assignedAgent.status}
+                            </Badge>
                           </div>
-                          <Badge variant="outline" className="text-xs">
-                            {assignedAgent.status}
-                          </Badge>
                         </div>
-                      </div>
-                    </div>
-                  )}
+                      ) : <p className="text-sm mt-1 text-muted-foreground">Unassigned</p>
+                    )}
+                  </div>
 
                   {/* Description */}
-                  {task.description && (
-                    <div>
-                      <span className="text-muted-foreground text-xs uppercase tracking-wider">Description</span>
-                      <p className="text-sm mt-2 whitespace-pre-wrap">{task.description}</p>
-                    </div>
-                  )}
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Description</Label>
+                    {isEditing ? (
+                      <Textarea 
+                        value={editableTask.description || ''}
+                        onChange={(e) => setEditableTask(prev => ({ ...prev, description: e.target.value }))}
+                        className="mt-1 text-sm h-24"
+                      />
+                    ) : (
+                      <p className="text-sm mt-2 whitespace-pre-wrap">{task.description || "N/A"}</p>
+                    )}
+                  </div>
 
                   {/* Dependencies */}
                   {dependencies.length > 0 && (
                     <div>
-                      <span className="text-muted-foreground text-xs uppercase tracking-wider">Dependencies</span>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Dependencies</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {dependencies.map((depId: any, index) => (
+                        {dependencies.map((depId: unknown, index) => (
                           <Badge key={index} variant="outline" className="text-xs font-mono">
                             <GitBranch className="h-3 w-3 mr-1" />
-                            {depId}
+                            {String(depId)}
                           </Badge>
                         ))}
                       </div>
@@ -203,12 +324,12 @@ export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
                   {/* Child Tasks */}
                   {childTasks.length > 0 && (
                     <div>
-                      <span className="text-muted-foreground text-xs uppercase tracking-wider">Subtasks</span>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Subtasks</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {childTasks.map((childId: any, index) => (
+                        {childTasks.map((childId: unknown, index) => (
                           <Badge key={index} variant="outline" className="text-xs font-mono">
                             <Hash className="h-3 w-3 mr-1" />
-                            {childId}
+                            {String(childId)}
                           </Badge>
                         ))}
                       </div>
@@ -218,19 +339,22 @@ export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
                   {/* Notes */}
                   {notes.length > 0 && (
                     <div>
-                      <span className="text-muted-foreground text-xs uppercase tracking-wider">Notes</span>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes</Label>
                       <div className="space-y-2 mt-2">
-                        {notes.map((note: any, index) => (
-                          <div key={index} className="bg-muted/50 rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-medium">{note.author}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(note.timestamp).toLocaleString()}
-                              </span>
+                        {notes.map((note: unknown, index) => {
+                          const noteObj = note as { author: string; timestamp: string; content: string };
+                          return (
+                            <div key={index} className="bg-muted/50 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium">{noteObj.author}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(noteObj.timestamp).toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="text-sm">{noteObj.content}</p>
                             </div>
-                            <p className="text-sm">{note.content}</p>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -238,15 +362,11 @@ export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
                   {/* Timestamps */}
                   <div className="pt-4 border-t space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Created</span>
-                      <span className="font-mono text-xs">{new Date(task.created_at).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
                       <span className="text-muted-foreground">Last Updated</span>
                       <span className="font-mono text-xs">{new Date(task.updated_at).toLocaleString()}</span>
                     </div>
                   </div>
-                </>
+                </div>
               )}
 
               {activeTab === 'history' && (
@@ -255,23 +375,23 @@ export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
                     taskHistory.map((action, index) => (
                       <div key={index} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors">
                         <div className="flex-shrink-0 mt-0.5">
-                          {getActionIcon(action.action_type)}
+                          {getActionIcon('action_type' in action ? action.action_type as string : '')}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-sm capitalize">
-                              {action.action_type.replace(/_/g, ' ')}
+                              {'action_type' in action ? (action.action_type as string).replace(/_/g, ' ') : ''}
                             </p>
                             <span className="text-xs text-muted-foreground flex-shrink-0">
                               {formatTimestamp(action.timestamp)}
                             </span>
                           </div>
-                          {action.agent_id && (
+                          {'agent_id' in action && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Agent: {action.agent_id}
+                              Agent: {action.agent_id as string}
                             </p>
                           )}
-                          {action.details && (
+                           {'details' in action && typeof action.details === 'string' && (
                             <p className="text-xs text-muted-foreground mt-1 break-words">
                               {action.details}
                             </p>
@@ -290,27 +410,6 @@ export function TaskDetailsPanel({ task, onClose }: TaskDetailsPanelProps) {
 
             </div>
           </ScrollArea>
-
-          {/* Action Buttons */}
-          <div className="border-t p-4 space-y-2">
-            {task.status === 'pending' && (
-              <Button className="w-full" size="sm">
-                <Activity className="h-3.5 w-3.5 mr-2" />
-                Start Task
-              </Button>
-            )}
-            {task.status === 'in_progress' && (
-              <Button className="w-full" variant="secondary" size="sm">
-                <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
-                Mark Complete
-              </Button>
-            )}
-            <Button variant="outline" className="w-full" size="sm">
-              <MessageSquare className="h-3.5 w-3.5 mr-2" />
-              Add Note
-            </Button>
-          </div>
-
         </div>
       )}
     </div>

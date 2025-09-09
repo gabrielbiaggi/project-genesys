@@ -1,7 +1,6 @@
 # Agent-MCP/mcp_template/mcp_server_src/tools/admin_tools.py
 import json
 import datetime
-import subprocess  # For launching Cursor (will be commented out)
 import os
 import sqlite3
 from typing import List, Dict, Any, Optional
@@ -28,7 +27,7 @@ from ..utils.tmux_utils import (
     send_command_to_session,
 )
 from ..utils.prompt_templates import build_agent_prompt
-from ..db.connection import get_db_connection, execute_db_write
+from ..db.connection import get_db_connection
 from ..db.actions.agent_actions_db import log_agent_action_to_db  # For DB logging
 
 
@@ -401,7 +400,7 @@ async def create_agent_tool_impl(
                     wait_for_command_completion(tmux_session_name, setup_delay)
 
                     # Verify we're in the correct working directory
-                    verify_command = f"echo 'Working directory:' && pwd"
+                    verify_command = "echo 'Working directory:' && pwd"
                     if send_command_to_session(tmux_session_name, verify_command):
                         logger.info(
                             f"✅ Sent directory verification to agent '{agent_id}'"
@@ -1319,7 +1318,7 @@ async def relaunch_agent_tool_impl(
         response_parts = [
             f"Agent '{agent_id}' successfully relaunched in session '{session_name}'",
             f"Previous status: {current_status} → active",
-            f"Session cleared and new prompt sent",
+            "Session cleared and new prompt sent",
         ]
 
         if generate_new_token:

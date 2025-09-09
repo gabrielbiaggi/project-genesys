@@ -7,9 +7,9 @@ alwaysApply: true
 ## Meta-Regra Obrigatória
 
 - Antes de **toda e qualquer resposta**, você deve confirmar explicitamente que leu e está aplicando as regras contidas em:
-  - `global-rules.mdc`
+
   - `.cursor/rules/system-rules.mdc
-  - `mapa-do-projeto.mdc
+
 - Essa confirmação é **obrigatória e prioritária**.
 
 ---

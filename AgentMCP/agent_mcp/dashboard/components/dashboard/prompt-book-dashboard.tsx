@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react'
 import { 
-  BookOpen, Search, Copy, CheckCircle2, Filter, Tag, ChevronDown, ChevronRight,
-  UserPlus, CheckSquare, Database, Bug, Users, Sparkles, ExternalLink, Plus, HelpCircle, Edit3, X
+  BookOpen, Search, Copy, CheckCircle2,
+  UserPlus, CheckSquare, Database, Bug, Sparkles, Plus, HelpCircle, X, Users
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,18 +30,14 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { 
   promptCategories, 
   promptTemplates, 
-  getPromptsByCategory, 
   searchPrompts, 
   fillPromptTemplate,
   validatePromptVariables,
-  type PromptTemplate,
-  type PromptCategory
 } from '@/lib/prompt-book'
 import { CreatePromptModal } from './modals/create-prompt-modal'
 import { PromptBookTutorial, usePromptBookTutorial } from './onboarding/prompt-book-tutorial'
@@ -166,9 +162,8 @@ const PromptCard = ({ prompt, onSelect, onDelete, isCustom }: {
 }
 
 // Component for the prompt builder/editor
-const PromptBuilder = ({ prompt, onClose }: {
+const PromptBuilder = ({ prompt }: {
   prompt: PromptTemplate;
-  onClose: () => void;
 }) => {
   const [variables, setVariables] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
@@ -304,6 +299,16 @@ const PromptBuilder = ({ prompt, onClose }: {
   )
 }
 
+interface NewPromptData {
+  title: string;
+  description: string;
+  category: string;
+  template: string;
+  usage: string;
+  variables: { name: string; description: string; placeholder: string; required: boolean }[];
+  tags: string[];
+}
+
 export function PromptBookDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -372,7 +377,7 @@ export function PromptBookDashboard() {
     setBuilderOpen(true)
   }
 
-  const handleCreatePrompt = (promptData: any) => {
+  const handleCreatePrompt = (promptData: NewPromptData) => {
     const newPrompt: PromptTemplate = {
       id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       title: promptData.title,
@@ -606,7 +611,6 @@ export function PromptBookDashboard() {
           {selectedPrompt && (
             <PromptBuilder
               prompt={selectedPrompt}
-              onClose={() => setBuilderOpen(false)}
             />
           )}
         </DialogContent>

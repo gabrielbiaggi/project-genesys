@@ -63,7 +63,7 @@ export function DeleteMemoryModal({
     onOpenChange(false)
   }
 
-  const formatValue = (value: any) => {
+  const formatValue = (value: unknown) => {
     if (typeof value === 'string') {
       return value.length > 50 ? value.substring(0, 50) + '...' : value
     }
@@ -171,7 +171,7 @@ export function DeleteMemoryModal({
             </div>
             {confirmationText.length > 0 && !isConfirmed && (
               <div className="text-xs text-destructive">
-                Please type "{requiredConfirmation}" exactly to confirm deletion
+                Please type &quot;{requiredConfirmation}&quot; exactly to confirm deletion
               </div>
             )}
           </div>

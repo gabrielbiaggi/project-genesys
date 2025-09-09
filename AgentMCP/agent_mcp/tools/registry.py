@@ -1,9 +1,10 @@
 # Agent-MCP/mcp_template/mcp_server_src/tools/registry.py
-from typing import List, Dict, Any, Callable, Awaitable, Optional, Union
-import mcp.types as mcp_types # Assuming this is the correct import for your mcp.types
+from typing import List, Dict, Any, Callable, Awaitable, Union
+import mcp.types as mcp_types  # Assuming this is the correct import for your mcp.types
 
 # Import utility for JSON sanitization, as handle_tool uses it
-from ..utils.json_utils import sanitize_json_input, get_sanitized_json_body
+from ..utils.json_utils import sanitize_json_input
+
 # Import the central logger
 from ..core.config import logger
 
@@ -14,12 +15,20 @@ from ..core.config import logger
 #       from .task_tools import assign_task_tool_impl, ...
 #       from .rag_tools import ask_project_rag_tool_impl
 
-# --- Tool Function Placeholders (to be replaced by actual imports) ---
-# These represent the core logic of each tool, now separated from parsing/auth.
+# --- Globals ---
+# A dictionary to hold all registered tools' metadata and implementations
+_tool_registry: Dict[str, Dict[str, Any]] = {}
+_tools_initialized = False
+
+
+# --- Placeholder for testing ---
 async def placeholder_tool_logic(*args, **kwargs) -> List[mcp_types.TextContent]:
-    tool_name = kwargs.get('_tool_name', 'unknown_placeholder_tool')
-    logger.warning(f"Placeholder logic called for tool: {tool_name} with args: {args}, kwargs: {kwargs}")
-    return [mcp_types.TextContent(type="text", text=f"Placeholder response for {tool_name}. Not implemented in registry yet.")]
+    tool_name = kwargs.get("_tool_name", "unknown_placeholder_tool")
+    logger.warning(
+        f"Placeholder logic called for tool: {tool_name} with args: {args}, kwargs: {kwargs}"
+    )
+    return [mcp_types.TextContent(text="Tool logic not fully implemented yet.")]
+
 
 # This dictionary will map tool names to their implementation functions.
 # It will be populated by importing and assigning the actual tool functions.
@@ -30,7 +39,9 @@ async def placeholder_tool_logic(*args, **kwargs) -> List[mcp_types.TextContent]
 # ... and so on for all tools
 # }
 # For now, it's empty and will be filled as we create the tool modules.
-tool_implementations: Dict[str, Callable[..., Awaitable[List[mcp_types.TextContent]]]] = {}
+tool_implementations: Dict[
+    str, Callable[..., Awaitable[List[mcp_types.TextContent]]]
+] = {}
 
 # This list will hold the schema definitions for all tools.
 # It will be populated by defining each tool's schema.
@@ -42,24 +53,23 @@ tool_implementations: Dict[str, Callable[..., Awaitable[List[mcp_types.TextConte
 # }
 tool_schemas: List[Dict[str, Any]] = []
 
-# Flag to ensure tools are only initialized once
-_tools_initialized = False
-
 
 # --- Core Tool Registry Functions ---
 
+
 def initialize_tools():
     """
-    Imports and registers all tool modules.
+    Imports and registers all available tools from their respective modules.
     This function should be called once at application startup.
     """
     global _tools_initialized
     if _tools_initialized:
+        # logger.debug("Tools already initialized, skipping re-registration.")
         return
 
     logger.info("Initializing and registering all available tools...")
 
-    # Import all tool registration functions
+    # Import and call registration functions from each tool module
     from .admin_tools import register_admin_tools
     from .agent_communication_tools import register_agent_communication_tools
     from .agent_tools import register_agent_tools
@@ -71,44 +81,49 @@ def initialize_tools():
     from .task_tools import register_task_tools
     from .utility_tools import register_utility_tools
 
-    # Call all registration functions
     register_admin_tools()
     register_agent_communication_tools()
     register_agent_tools()
     register_file_management_tools()
     register_file_metadata_tools()
-    register_os_tools()
     register_project_context_tools()
     register_rag_tools()
     register_task_tools()
     register_utility_tools()
+    register_os_tools()
 
     _tools_initialized = True
-    logger.info(f"Tool initialization complete. {len(tool_schemas)} tools registered.")
+    logger.info(
+        f"Tool registration complete. Total tools registered: {len(_tool_registry)}"
+    )
 
 
 def register_tool(
     name: str,
     description: str,
     input_schema: Dict[str, Any],
-    implementation: Callable[..., Awaitable[List[mcp_types.TextContent]]]
+    implementation: Callable[..., Awaitable[List[mcp_types.TextContent]]],
 ):
     """
     Registers a tool's schema and its implementation.
     This function will be called by each tool module to register itself.
     """
     global tool_schemas, tool_implementations
-    
+
     # Check for duplicate tool names
     if name in tool_implementations:
-        logger.warning(f"Tool '{name}' is being re-registered. Overwriting previous definition.")
+        logger.warning(
+            f"Tool '{name}' is being re-registered. Overwriting previous definition."
+        )
 
-    tool_schemas.append({
-        "name": name,
-        "description": description,
-        "inputSchema": input_schema
-        # mcp.types.Tool in the original also had an outputSchema, which can be added if needed.
-    })
+    tool_schemas.append(
+        {
+            "name": name,
+            "description": description,
+            "inputSchema": input_schema,
+            # mcp.types.Tool in the original also had an outputSchema, which can be added if needed.
+        }
+    )
     tool_implementations[name] = implementation
     logger.info(f"Registered tool: {name}")
 
@@ -122,12 +137,12 @@ async def list_available_tools() -> List[mcp_types.Tool]:
     # Convert the stored schema dictionaries to mcp_types.Tool objects
     # The original code directly returned a list of mcp_types.Tool.
     # We need to ensure the structure matches.
-    
+
     # The `tool_schemas` list already contains dictionaries in the format
     # that can be directly used to instantiate `mcp_types.Tool` if the keys match.
     # Let's assume `mcp_types.Tool` can be constructed from a dictionary
     # with 'name', 'description', and 'inputSchema'.
-    
+
     mcp_tool_list: List[mcp_types.Tool] = []
     for schema_dict in tool_schemas:
         try:
@@ -138,12 +153,15 @@ async def list_available_tools() -> List[mcp_types.Tool]:
             tool_instance = mcp_types.Tool(
                 name=schema_dict["name"],
                 description=schema_dict["description"],
-                inputSchema=schema_dict["inputSchema"]
+                inputSchema=schema_dict["inputSchema"],
                 # outputSchema=schema_dict.get("outputSchema") # If you add outputSchema
             )
             mcp_tool_list.append(tool_instance)
         except Exception as e:
-            logger.error(f"Failed to create mcp_types.Tool instance for '{schema_dict.get('name', 'Unknown')}': {e}", exc_info=True)
+            logger.error(
+                f"Failed to create mcp_types.Tool instance for '{schema_dict.get('name', 'Unknown')}': {e}",
+                exc_info=True,
+            )
             # Optionally, skip this tool or add a placeholder error tool.
             # For now, skipping problematic ones.
 
@@ -152,7 +170,9 @@ async def list_available_tools() -> List[mcp_types.Tool]:
 
 async def dispatch_tool_call(
     tool_name: str,
-    raw_arguments: Union[Dict[str, Any], List[Dict[str, Any]]] # Original accepted list or dict
+    raw_arguments: Union[
+        Dict[str, Any], List[Dict[str, Any]]
+    ],  # Original accepted list or dict
 ) -> List[mcp_types.TextContent]:
     """
     Handles a tool call by dispatching to the appropriate implementation.
@@ -192,26 +212,46 @@ async def dispatch_tool_call(
             # it's more likely `raw_arguments` is a single Dict.
             if isinstance(raw_arguments, dict):
                 sanitized_arguments = sanitize_json_input(raw_arguments)
-            else: # If it's a list, and we are not supporting recursive calls here.
-                logger.error(f"Received a list of arguments for tool '{tool_name}', but registry expects a single argument dictionary per call.")
-                return [mcp_types.TextContent(type="text", text="Error: Server tool dispatcher expects a single argument set, not a list.")]
+            else:  # If it's a list, and we are not supporting recursive calls here.
+                logger.error(
+                    f"Received a list of arguments for tool '{tool_name}', but registry expects a single argument dictionary per call."
+                )
+                return [
+                    mcp_types.TextContent(
+                        type="text",
+                        text="Error: Server tool dispatcher expects a single argument set, not a list.",
+                    )
+                ]
 
         elif not isinstance(raw_arguments, dict):
             # Try to sanitize and parse if not a dict (e.g., a JSON string from a raw request)
             sanitized_arguments = sanitize_json_input(raw_arguments)
             if not isinstance(sanitized_arguments, dict):
                 # If after sanitization it's still not a dict, it's an invalid format.
-                raise ValueError(f"Tool arguments for '{tool_name}' must be a dictionary after sanitization, got {type(sanitized_arguments)}")
-        else: # It's already a dict
-            sanitized_arguments = sanitize_json_input(raw_arguments) # Still sanitize it
+                raise ValueError(
+                    f"Tool arguments for '{tool_name}' must be a dictionary after sanitization, got {type(sanitized_arguments)}"
+                )
+        else:  # It's already a dict
+            sanitized_arguments = sanitize_json_input(
+                raw_arguments
+            )  # Still sanitize it
 
     except ValueError as e:
         logger.error(f"Invalid input arguments for tool '{tool_name}': {e}")
-        return [mcp_types.TextContent(type="text", text=f"Invalid input arguments: {str(e)}")]
-    except Exception as e: # Catch any other sanitization errors
-        logger.error(f"Error sanitizing arguments for tool '{tool_name}': {e}", exc_info=True)
-        return [mcp_types.TextContent(type="text", text=f"Error processing tool arguments: {str(e)}")]
-
+        return [
+            mcp_types.TextContent(
+                type="text", text=f"Invalid input arguments: {str(e)}"
+            )
+        ]
+    except Exception as e:  # Catch any other sanitization errors
+        logger.error(
+            f"Error sanitizing arguments for tool '{tool_name}': {e}", exc_info=True
+        )
+        return [
+            mcp_types.TextContent(
+                type="text", text=f"Error processing tool arguments: {str(e)}"
+            )
+        ]
 
     # Dispatch to the correct tool implementation (main.py:1879 onwards)
     if tool_name in tool_implementations:
@@ -226,13 +266,13 @@ async def dispatch_tool_call(
             # This will now be the responsibility of the individual tool_impl functions.
             # For example, create_agent_tool_impl(arguments: Dict) -> ...
             # inside create_agent_tool_impl: token = arguments.get("token"), agent_id = arguments.get("agent_id")
-            
+
             # This is a key design decision:
             # Option A: Dispatcher unpacks args: `return await func(sanitized_args.get("token"), ...)` (like original)
             # Option B: Dispatcher passes dict: `return await func(sanitized_arguments)` (current choice)
             # Option B is more flexible if tool signatures vary widely or use **kwargs.
             # It makes individual tool functions responsible for their arg parsing.
-            
+
             # For closer 1-to-1 with original's direct arg passing, we'd need a huge if/elif here.
             # Let's stick to Option B for better modularity, assuming tool_impl functions
             # are adapted to take a single dictionary of arguments.
@@ -247,7 +287,7 @@ async def dispatch_tool_call(
             # Each specific tool's logic (argument extraction, calling the core function)
             # will be in its own `*_tool.py` file, which registers its implementation.
             # The implementation function itself will handle argument extraction.
-            
+
             # Example: if tool_name == "create_agent":
             #   return await create_agent_tool_impl(sanitized_arguments)
             # This is handled by the dict lookup now.
@@ -256,12 +296,22 @@ async def dispatch_tool_call(
 
         except Exception as e:
             logger.error(f"Error executing tool '{tool_name}': {e}", exc_info=True)
-            return [mcp_types.TextContent(type="text", text=f"Internal error executing tool '{tool_name}': {str(e)}")]
+            return [
+                mcp_types.TextContent(
+                    type="text",
+                    text=f"Internal error executing tool '{tool_name}': {str(e)}",
+                )
+            ]
     else:
         logger.warning(f"Unknown tool called: {tool_name}")
         # Original main.py:1930 (raise ValueError(f"Unknown tool: {name}"))
         # Returning an error message is friendlier for an API.
-        return [mcp_types.TextContent(type="text", text=f"Error: Unknown tool '{tool_name}'.")]
+        return [
+            mcp_types.TextContent(
+                type="text", text=f"Error: Unknown tool '{tool_name}'."
+            )
+        ]
+
 
 # The actual tool schemas and implementations will be populated by calls to `register_tool`
 # from each of the specific tool modules (e.g., admin_tools.py, task_tools.py, etc.)

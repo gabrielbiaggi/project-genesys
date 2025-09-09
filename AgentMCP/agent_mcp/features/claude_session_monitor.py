@@ -1,10 +1,9 @@
 # Agent-MCP/agent_mcp/features/claude_session_monitor.py
-import os
 import json
 import asyncio
 import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 from ..core.config import logger, get_project_dir
 from ..db.connection import get_db_connection

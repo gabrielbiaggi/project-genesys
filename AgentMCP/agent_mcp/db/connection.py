@@ -1,7 +1,5 @@
 # Agent-MCP/mcp_template/mcp_server_src/db/connection.py
 import sqlite3
-import os  # Still needed for os.environ if get_db_path is not used directly for some reason
-from pathlib import Path
 
 # Import the sqlite_vec library if available.
 # This allows the module to be imported even if sqlite_vec is not installed,
@@ -16,7 +14,7 @@ from ..core.config import logger, get_db_path
 from ..core import globals as g  # For setting global VSS flags
 
 # Import write queue for serializing database write operations
-from .write_queue import get_write_queue, execute_write_operation
+from .write_queue import execute_write_operation
 
 # Module-level flags for VSS loadability, now directly using the global ones.
 # These are initialized in mcp_server_src.core.globals
@@ -164,9 +162,7 @@ def get_db_connection() -> sqlite3.Connection:
                     "sqlite-vec extension not loaded for this connection (globally not loadable or library not found)."
                 )
 
-    except (
-        AttributeError
-    ) as e_attr:  # From main.py:240, if sqlite3 itself is too old for enable_load_extension
+    except AttributeError as e_attr:  # From main.py:240, if sqlite3 itself is too old for enable_load_extension
         logger.error(
             f"The sqlite3 library version does not support enable_load_extension: {e_attr}. sqlite-vec cannot be used."
         )
@@ -196,9 +192,7 @@ def get_db_connection() -> sqlite3.Connection:
         raise RuntimeError(
             f"Database connection error: {e_sql}"
         ) from e_sql  # Re-raise as a more generic runtime error
-    except (
-        Exception
-    ) as e_unexpected:  # From main.py:248 (original line numbers) - other unexpected errors
+    except Exception as e_unexpected:  # From main.py:248 (original line numbers) - other unexpected errors
         logger.error(
             f"Unexpected error getting DB connection for '{db_file_path}': {e_unexpected}",
             exc_info=True,

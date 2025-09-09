@@ -4,12 +4,13 @@ import json
 import datetime
 import sqlite3
 import anyio  # For managing background tasks
+import asyncio
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
 # Project-specific imports
-from ..core.config import logger, get_project_dir
+from ..core.config import logger
 from ..core import globals as g
 from ..core.auth import generate_token  # For admin token generation
 from ..utils.project_utils import init_agent_directory
@@ -17,11 +18,16 @@ from ..db.schema import init_database as initialize_database_schema
 from ..db.connection import get_db_connection, check_vss_loadability
 from ..external.openai_service import initialize_openai_client
 from ..features.rag.indexing import run_rag_indexing_periodically
-from ..features.autonomous_researcher import run_autonomous_research_loop
 
 from ..features.claude_session_monitor import run_claude_session_monitoring
 from ..utils.signal_utils import register_signal_handlers  # For graceful shutdown
 from ..db.write_queue import get_write_queue
+
+# Adicionar importação para o encerramento do monitoramento da GPU
+from ..features.dashboard.system_metrics import shutdown_gpu_monitoring
+
+# Adicionar importação do GenesysAgent
+from AgentMCP.genesys_integration.genesys_agent import GenesysAgent
 
 
 # This function encapsulates the logic originally in main() before server run.
@@ -39,6 +45,9 @@ async def application_startup(
     - Performs VSS loadability check.
     - Registers signal handlers.
     """
+    # **CORREÇÃO:** Definir a variável de ambiente primeiro para que todos os módulos a vejam.
+    os.environ["MCP_PROJECT_DIR"] = str(Path(project_dir_path_str).resolve())
+
     # Load environment variables from .env file first
     load_dotenv()
 
@@ -162,7 +171,7 @@ async def application_startup(
                     ),
                 )
                 conn_admin_token.commit()
-                logger.info(f"Generated and stored new admin token.")
+                logger.info("Generated and stored new admin token.")
 
         g.admin_token = effective_admin_token  # Set the global admin token
         logger.info(f"MCP Admin Token ({token_source_description}): {g.admin_token}")
@@ -295,19 +304,57 @@ async def application_startup(
 
     # 8. Initialize and register all tools
     from ..tools.registry import initialize_tools
+
     initialize_tools()
 
     # 9. Register Signal Handlers (Original main.py: 839-840, called before server run)
     register_signal_handlers()  # utils.signal_utils.register_signal_handlers
 
+    # 10. Initialize Genesys Agent
+    logger.info("Initializing Genesys Agent...")
+    try:
+        g.genesys_agent_instance = GenesysAgent()
+        logger.info("Genesys Agent instance created. Starting model load in a background thread.")
+
+        # Precisamos de um TaskGroup para gerenciar nossas tarefas de fundo
+        g.main_task_group = anyio.create_task_group()
+        await g.main_task_group.__aenter__()
+
+        # Inicia o processo de inicialização das tarefas de fundo
+        await g.main_task_group.start(start_background_tasks, g.main_task_group)
+
+    except Exception as e:
+        logger.error(f"Failed to instantiate or start Genesys Agent background tasks: {e}", exc_info=True)
+        g.genesys_agent_instance = None # Ensure it's None on failure
+
     logger.info("MCP Server application startup sequence finished.")
 
 
-async def start_background_tasks(task_group: anyio.abc.TaskGroup):
+async def start_background_tasks(task_group: anyio.abc.TaskGroup, *args, task_status=anyio.TASK_STATUS_IGNORED, **kwargs):
     """Starts long-running background tasks like the RAG indexer."""
+    task_status.started()  # Sinaliza ao anyio que a tarefa principal de fundo foi iniciada
     logger.info("Starting background tasks...")
+
+    # Função wrapper para executar o load_model bloqueante em um thread separado
+    async def run_load_model_in_thread(*args, task_status=anyio.TASK_STATUS_IGNORED, **kwargs):
+        """Wrapper to run the blocking model load in a separate thread and notify anyio."""
+        task_status.started()  # Sinaliza ao anyio que a tarefa foi iniciada com sucesso
+        try:
+            # anyio.to_thread.run_sync é a maneira correta de chamar código de bloqueio
+            # de um contexto assíncrono para não congelar o event loop.
+            # Envolvemos a chamada da corrotina com asyncio.run para executá-la corretamente no thread.
+            await anyio.to_thread.run_sync(asyncio.run, g.genesys_agent_instance.load_model())
+            logger.info("Background thread for model loading has completed successfully.")
+        except Exception as e:
+            logger.error(f"Error during model loading in background thread: {e}", exc_info=True)
+            # Em caso de erro, a tarefa simplesmente termina, mas o servidor continua rodando.
+
+    # Start Genesys Model Loading
+    if g.genesys_agent_instance:
+        await task_group.start(run_load_model_in_thread)
+        logger.info("Genesys model loading process started in a background thread.")
+
     # Start RAG Indexer (Original main.py: 2625-2627)
-    # The interval can be made configurable if needed.
     rag_interval = int(os.environ.get("MCP_RAG_INDEX_INTERVAL_SECONDS", "300"))
     g.rag_index_task_scope = await task_group.start(
         run_rag_indexing_periodically, rag_interval
@@ -347,7 +394,11 @@ async def application_shutdown():
         logger.info("Attempting to cancel Claude session monitoring task...")
         g.claude_session_task_scope.cancel()
 
-    if g.autonomous_research_task_scope and not g.autonomous_research_task_scope.cancel_called:
+    if (
+        g.autonomous_research_task_scope
+        and hasattr(g.autonomous_research_task_scope, "cancel")
+        and not g.autonomous_research_task_scope.cancel_called
+    ):
         logger.info("Attempting to cancel autonomous researcher task...")
         g.autonomous_research_task_scope.cancel()
 
@@ -358,12 +409,16 @@ async def application_shutdown():
 
     # Stop the Genesys subprocess if it's running
     from ..features.service_manager import stop_genesys_process
+
     if g.genesys_process and g.genesys_process.poll() is None:
         logger.info("Shutting down Genesys Agent subprocess...")
         stop_genesys_process()
 
     # Add any other cleanup (e.g., closing persistent connections if not managed by context)
     # For SQLite, connections are typically short-lived per request/operation.
+
+    # Adicionar encerramento do monitoramento da GPU
+    shutdown_gpu_monitoring()
 
     logger.info("MCP Server application shutdown sequence complete.")
 

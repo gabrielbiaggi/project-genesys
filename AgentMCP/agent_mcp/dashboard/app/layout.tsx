@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ApiClientInitializer } from "@/components/providers/api-client-initializer";
 
 const inter = Inter({
@@ -40,10 +39,8 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
         suppressHydrationWarning
       >
-        <ThemeProvider>
-          <ApiClientInitializer />
-          {children}
-        </ThemeProvider>
+        <ApiClientInitializer />
+        {children}
       </body>
     </html>
   );

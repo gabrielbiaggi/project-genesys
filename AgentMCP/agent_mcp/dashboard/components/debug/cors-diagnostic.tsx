@@ -10,7 +10,7 @@ interface DiagnosticResult {
   test: string
   status: 'success' | 'failed' | 'pending'
   message: string
-  details?: any
+  details?: unknown
 }
 
 export function CORSDiagnostic() {
@@ -162,7 +162,7 @@ export function CORSDiagnostic() {
 
         {results.length === 0 && !isRunning && (
           <div className="text-center text-gray-500 py-8">
-            Click "Run CORS Diagnostics" to start testing
+            Click &quot;Run CORS Diagnostics&quot; to start testing
           </div>
         )}
       </CardContent>

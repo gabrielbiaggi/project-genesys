@@ -3,12 +3,11 @@ import os
 import json
 import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
 from ..core import globals as g
 from ..core.config import (
     logger,
-    get_project_dir,
 )  # Import get_project_dir for MCP_VERSION if needed
 
 # __version__ was in mcp_template/__init__.py.
@@ -62,7 +61,7 @@ def init_agent_directory(project_dir_str: str) -> Optional[Path]:
             f"WARNING: Initializing .agent in the MCP directory itself ({project_path}) or its parent is not recommended!"
         )
         logger.warning(
-            f"Please specify a project directory that is NOT the MCP codebase."
+            "Please specify a project directory that is NOT the MCP codebase."
         )
         # Original code proceeded with a warning, so we do the same.
 

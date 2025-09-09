@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 # Version information
 VERSION = "2.0"
@@ -60,9 +60,7 @@ DB_FILE_NAME: str = "mcp_state.db"  # From main.py:39
 LOG_FILE_NAME: str = "mcp_server.log"  # Based on main.py:46
 LOG_LEVEL: int = logging.INFO  # From main.py:43
 LOG_FORMAT_FILE: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-LOG_FORMAT_CONSOLE: str = (
-    f"%(asctime)s - %(name)s - %(levelname)s - {TUIColors.DIM}%(message)s{TUIColors.ENDC}"  # Dim message text
-)
+LOG_FORMAT_CONSOLE: str = f"%(asctime)s - %(name)s - %(levelname)s - {TUIColors.DIM}%(message)s{TUIColors.ENDC}"  # Dim message text
 
 CONSOLE_LOGGING_ENABLED = (
     os.environ.get("MCP_DEBUG", "false").lower() == "true"
@@ -106,9 +104,9 @@ def setup_logging():
     # but we can also try to manage its error logger if needed.
     logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
     logging.getLogger("uvicorn").setLevel(logging.WARNING)  # General uvicorn logger
-    logging.getLogger("mcp.server.lowlevel.server").propagate = (
-        False  # Prevent duplication if it logs directly
-    )
+    logging.getLogger(
+        "mcp.server.lowlevel.server"
+    ).propagate = False  # Prevent duplication if it logs directly
 
 
 def enable_console_logging():
@@ -143,28 +141,28 @@ setup_logging()
 logger = logging.getLogger("mcp_server")  # Main application logger
 
 # --- Agent Appearance ---
-AGENT_COLORS: List[str] = (
-    [  # From main.py:160-164 (Note: original had 160-165, but list ends on 164)
-        "#FF5733",
-        "#33FF57",
-        "#3357FF",
-        "#FF33A1",
-        "#A133FF",
-        "#33FFA1",
-        "#FFBD33",
-        "#33FFBD",
-        "#BD33FF",
-        "#FF3333",
-        "#33FF33",
-        "#3333FF",
-        "#FF8C00",
-        "#00CED1",
-        "#9400D3",
-        "#FF1493",
-        "#7FFF00",
-        "#1E90FF",
-    ]
-)
+AGENT_COLORS: List[
+    str
+] = [  # From main.py:160-164 (Note: original had 160-165, but list ends on 164)
+    "#FF5733",
+    "#33FF57",
+    "#3357FF",
+    "#FF33A1",
+    "#A133FF",
+    "#33FFA1",
+    "#FFBD33",
+    "#33FFBD",
+    "#BD33FF",
+    "#FF3333",
+    "#33FF33",
+    "#3333FF",
+    "#FF8C00",
+    "#00CED1",
+    "#9400D3",
+    "#FF1493",
+    "#7FFF00",
+    "#1E90FF",
+]
 
 # --- OpenAI Model Configuration ---
 # Advanced mode flag - set by CLI
@@ -233,15 +231,21 @@ def get_db_path() -> Path:
 
 
 # --- Environment Variable Check (Optional but good practice) ---
-OPENAI_API_KEY_ENV: Optional[str] = os.environ.get("OPENAI_API_KEY")  # From main.py:174
-# Debug print statement removed for clean console output
-if not OPENAI_API_KEY_ENV:
-    logger.error(
-        "CRITICAL: OPENAI_API_KEY not found in environment variables. Please set it in your .env file or environment."
-    )
-    # Depending on strictness, you might want to raise an exception or sys.exit(1) here
-    # For now, just logging, as the openai_service.py will handle the client init failure.
+# This should be a Path object for type consistency.
+DB_PATH = get_db_path()
 
+# Environment variable names
+# Made CLIENT_ID_ENV optional as it's not used critically
+CLIENT_ID_ENV = os.environ.get("CLIENT_ID")
+# OPENAI_API_KEY is now checked in the service, not here, to allow server startup
+# OPENAI_API_KEY_ENV = os.environ.get("OPENAI_API_KEY")
+
+# Check for required environment variables
+# if not OPENAI_API_KEY_ENV:
+#     logger.critical("CRITICAL: OPENAI_API_KEY not found in environment variables. Please set it in your .env file or environment.")
+# raise ValueError("OPENAI_API_KEY not found in environment variables.")
+
+# Optional environment variables
 # --- Task Placement Configuration (System 8) ---
 ENABLE_TASK_PLACEMENT_RAG: bool = (
     os.getenv("ENABLE_TASK_PLACEMENT_RAG", "true").lower() == "true"

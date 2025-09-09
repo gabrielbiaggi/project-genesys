@@ -1,13 +1,15 @@
 # Agent-MCP/agent_mcp/tools/os_tools.py
 import psutil
-import platform
 from typing import Dict, Any, List
 
 import mcp.types as mcp_types
 from .registry import register_tool
 from ..core.auth import verify_token
 
-async def list_running_processes_impl(arguments: Dict[str, Any]) -> List[mcp_types.TextContent]:
+
+async def list_running_processes_impl(
+    arguments: Dict[str, Any],
+) -> List[mcp_types.TextContent]:
     """Lists running processes on the host machine."""
     token = arguments.get("token")
     if not verify_token(token, required_role="admin"):
@@ -15,7 +17,9 @@ async def list_running_processes_impl(arguments: Dict[str, Any]) -> List[mcp_typ
 
     try:
         processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info']):
+        for proc in psutil.process_iter(
+            ["pid", "name", "username", "cpu_percent", "memory_info"]
+        ):
             processes.append(
                 f"PID: {proc.info['pid']}, Name: {proc.info['name']}, "
                 f"User: {proc.info['username']}, CPU: {proc.info['cpu_percent']}%, "
@@ -25,7 +29,10 @@ async def list_running_processes_impl(arguments: Dict[str, Any]) -> List[mcp_typ
     except Exception as e:
         return [mcp_types.TextContent(text=f"Error listing processes: {e}")]
 
-async def get_system_usage_impl(arguments: Dict[str, Any]) -> List[mcp_types.TextContent]:
+
+async def get_system_usage_impl(
+    arguments: Dict[str, Any],
+) -> List[mcp_types.TextContent]:
     """Gets overall system resource usage (CPU, Memory, Disk)."""
     token = arguments.get("token")
     if not verify_token(token, required_role="admin"):
@@ -34,7 +41,7 @@ async def get_system_usage_impl(arguments: Dict[str, Any]) -> List[mcp_types.Tex
     try:
         cpu_usage = psutil.cpu_percent(interval=1)
         memory_info = psutil.virtual_memory()
-        disk_usage = psutil.disk_usage('/')
+        disk_usage = psutil.disk_usage("/")
 
         usage_report = (
             f"System Usage Report:\\n"
@@ -46,6 +53,7 @@ async def get_system_usage_impl(arguments: Dict[str, Any]) -> List[mcp_types.Tex
     except Exception as e:
         return [mcp_types.TextContent(text=f"Error getting system usage: {e}")]
 
+
 def register_os_tools():
     """Registers the OS interaction tools."""
     register_tool(
@@ -54,7 +62,10 @@ def register_os_tools():
         input_schema={
             "type": "object",
             "properties": {
-                "token": {"type": "string", "description": "Admin authentication token."}
+                "token": {
+                    "type": "string",
+                    "description": "Admin authentication token.",
+                }
             },
             "required": ["token"],
         },
@@ -66,7 +77,10 @@ def register_os_tools():
         input_schema={
             "type": "object",
             "properties": {
-                "token": {"type": "string", "description": "Admin authentication token."}
+                "token": {
+                    "type": "string",
+                    "description": "Admin authentication token.",
+                }
             },
             "required": ["token"],
         },

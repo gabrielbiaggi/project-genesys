@@ -1,25 +1,12 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from "react"
 import { 
-  Brain, 
-  Search, 
-  Plus, 
-  MoreVertical, 
-  Edit, 
-  Trash2, 
-  Eye,
-  Copy,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Database,
-  Network
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
+  Brain, HardDrive, Clock, Plus, Trash2, Edit
+} from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { 
   Table, 
   TableBody, 
@@ -52,6 +39,8 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { useToast } from "@/hooks/use-toast"
+import { Memory } from "@/lib/api" // Importar tipo Memory
 
 // Stats card component
 const StatsCard = ({ icon: Icon, label, value, change, trend }: {
@@ -93,7 +82,7 @@ const MemoryRow = ({ memory, onView, onEdit, onDelete }: {
 }) => {
   const metadata = memory._metadata
 
-  const formatValue = (value: any) => {
+  const formatValue = (value: unknown) => {
     if (typeof value === 'string') {
       return value.length > 30 ? value.substring(0, 30) + '...' : value
     }
@@ -171,7 +160,7 @@ const MemoryRow = ({ memory, onView, onEdit, onDelete }: {
             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
             title="View details"
           >
-            <Eye className="h-3 w-3" />
+            {/* <Eye className="h-3 w-3" /> */}
           </Button>
           <Button 
             variant="ghost" 
@@ -202,7 +191,7 @@ const EditMemoryModal = ({ memory, open, onOpenChange, onUpdateMemory }: {
   memory: Memory
   open: boolean
   onOpenChange: (open: boolean) => void
-  onUpdateMemory: (data: { context_key: string; context_value: any; description?: string }) => Promise<void>
+  onUpdateMemory: (data: { context_key: string; context_value: unknown; description?: string }) => Promise<void>
 }) => {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -221,7 +210,7 @@ const EditMemoryModal = ({ memory, open, onOpenChange, onUpdateMemory }: {
     }
   }, [open, memory])
 
-  const handleValueChange = (value: any) => {
+  const handleValueChange = (value: unknown) => {
     setFormData(prev => ({ ...prev, context_value: value }))
   }
 
@@ -339,34 +328,27 @@ export function MemoriesDashboard() {
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null)
   const [viewModalOpen, setViewModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [isOperationLoading, setIsOperationLoading] = useState(false)
   const [operationError, setOperationError] = useState<string | null>(null)
+  const { toast } = useToast()
   
   const isConnected = !!activeServerId && activeServer?.status === 'connected'
 
   // Convert context data to memories format
-  const memories: Memory[] = React.useMemo(() => {
-    console.log('🔍 Debug - Raw data:', data)
-    console.log('🔍 Debug - Context data:', data?.context)
-    console.log('🔍 Debug - Context length:', data?.context?.length)
-    
+  const memories: Memory[] = useMemo(() => {
     if (!data?.context) {
-      console.log('❌ No context data found')
       return []
     }
-    
-    console.log('✅ Converting context to memories, count:', data.context.length)
-    return data.context.map(ctx => ({
-      context_key: ctx.context_key,
+    return data.context.map((ctx: Record<string, unknown>) => ({ // Tipar ctx para evitar 'any' implícito
+      context_key: ctx.context_key as string,
       value: ctx.value,
-      description: ctx.description,
+      description: ctx.description as string | undefined,
       last_updated: ctx.last_updated,
       updated_by: ctx.updated_by,
       _metadata: {
         size_bytes: JSON.stringify(ctx.value).length,
         size_kb: Math.round(JSON.stringify(ctx.value).length / 1024 * 100) / 100,
-        json_valid: true,
+        json_valid: true, // Supondo validade
         days_old: ctx.last_updated ? Math.floor((Date.now() - new Date(ctx.last_updated).getTime()) / (1000 * 60 * 60 * 24)) : undefined,
         is_stale: ctx.last_updated ? (Date.now() - new Date(ctx.last_updated).getTime()) > (30 * 24 * 60 * 60 * 1000) : false,
         is_large: JSON.stringify(ctx.value).length > 10240
@@ -382,8 +364,8 @@ export function MemoriesDashboard() {
   }, [activeServerId, activeServer?.status, refreshData])
 
   // Filter and sort memories
-  const filteredMemories = React.useMemo(() => {
-    let filtered = memories.filter(memory => 
+  const filteredMemories = useMemo(() => {
+    const filtered = memories.filter(memory => 
       memory.context_key.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (memory.description && memory.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
       JSON.stringify(memory.value).toLowerCase().includes(searchTerm.toLowerCase())
@@ -406,7 +388,7 @@ export function MemoriesDashboard() {
   }, [memories, searchTerm, sortBy])
 
   // Calculate stats
-  const stats = React.useMemo(() => {
+  const stats = useMemo(() => {
     const total = memories.length
     const stale = memories.filter(m => m._metadata?.is_stale).length
     const large = memories.filter(m => m._metadata?.is_large).length
@@ -447,10 +429,18 @@ export function MemoriesDashboard() {
     try {
       await apiClient.deleteMemory(memory.context_key, adminToken)
       await refreshData() // Refresh data after successful delete
-      console.log('Memory deleted successfully:', memory.context_key)
+      toast({
+        title: "Memória Excluída",
+        description: `A memória "${memory.context_key}" foi removida com sucesso.`,
+      })
     } catch (error) {
-      console.error('Failed to delete memory:', error)
-      setOperationError(error instanceof Error ? error.message : 'Failed to delete memory')
+      const errorMessage = error instanceof Error ? error.message : 'Falha ao excluir a memória.'
+      setOperationError(errorMessage)
+      toast({
+        title: "Erro ao Excluir",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setIsOperationLoading(false)
     }
@@ -458,52 +448,82 @@ export function MemoriesDashboard() {
 
   const handleCreateMemory = async (data: {
     context_key: string
-    context_value: any
+    context_value: unknown
     description?: string
   }) => {
     const adminToken = getAdminToken()
     if (!adminToken) {
-      throw new Error('No admin token available for create operation')
+      const error = new Error('No admin token available for create operation')
+      toast({ title: "Erro de Autenticação", description: error.message, variant: "destructive" })
+      throw error
     }
 
-    await apiClient.createMemory({
-      context_key: data.context_key,
-      context_value: data.context_value,
-      description: data.description,
-      token: adminToken
-    })
-    
-    await refreshData() // Refresh data after successful create
-    console.log('Memory created successfully:', data.context_key)
+    try {
+      await apiClient.createMemory({
+        context_key: data.context_key,
+        context_value: data.context_value,
+        description: data.description,
+        token: adminToken
+      })
+      
+      await refreshData() // Refresh data after successful create
+      toast({
+        title: "Memória Criada",
+        description: `A memória "${data.context_key}" foi criada com sucesso.`,
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Falha ao criar a memória.'
+      toast({
+        title: "Erro ao Criar",
+        description: errorMessage,
+        variant: "destructive",
+      })
+      throw error // Re-throw to be caught by the modal
+    }
   }
 
   const handleUpdateMemory = async (data: {
     context_key: string
-    context_value: any
+    context_value: unknown
     description?: string
   }) => {
     const adminToken = getAdminToken()
     if (!adminToken) {
-      throw new Error('No admin token available for update operation')
+      const error = new Error('No admin token available for update operation')
+      toast({ title: "Erro de Autenticação", description: error.message, variant: "destructive" })
+      throw error
     }
-
-    await apiClient.updateMemory(data.context_key, {
-      context_value: data.context_value,
-      description: data.description,
-      token: adminToken
-    })
     
-    await refreshData() // Refresh data after successful update
-    setEditModalOpen(false)
-    setSelectedMemory(null)
-    console.log('Memory updated successfully:', data.context_key)
+    try {
+      await apiClient.updateMemory(data.context_key, {
+        context_value: data.context_value,
+        description: data.description,
+        token: adminToken
+      })
+      
+      await refreshData() // Refresh data after successful update
+      setEditModalOpen(false)
+      setSelectedMemory(null)
+      toast({
+        title: "Memória Atualizada",
+        description: `A memória "${data.context_key}" foi atualizada com sucesso.`,
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Falha ao atualizar a memória.'
+      toast({
+        title: "Erro ao Atualizar",
+        description: errorMessage,
+        variant: "destructive",
+      })
+      throw error // Re-throw to be caught by the modal
+    }
   }
 
   if (!isConnected) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Network className="h-12 w-12 text-muted-foreground mx-auto" />
+          {/* <Network className="h-12 w-12 text-muted-foreground mx-auto" /> */}
           <div>
             <h3 className="text-lg font-medium text-foreground mb-2">No Server Connection</h3>
             <p className="text-muted-foreground text-sm">Connect to an MCP server to manage memories</p>
@@ -528,7 +548,7 @@ export function MemoriesDashboard() {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4">
-          <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+          {/* <AlertCircle className="h-12 w-12 text-destructive mx-auto" /> */}
           <div>
             <h3 className="text-lg font-medium text-foreground mb-2">Connection Error</h3>
             <p className="text-destructive text-sm">{error}</p>
@@ -563,7 +583,7 @@ export function MemoriesDashboard() {
             disabled={loading}
             className="text-xs"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} />
+            {/* <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} /> */}
             Refresh
           </Button>
           <CreateMemoryModal onCreateMemory={handleCreateMemory} />
@@ -573,14 +593,14 @@ export function MemoriesDashboard() {
       {/* Stats */}
       <div className="grid gap-[var(--space-fluid-md)] grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard 
-          icon={Database} 
+          icon={HardDrive} 
           label="Total" 
           value={stats.total} 
           change={stats.total > 0 ? `${memories.length} entries` : undefined}
           trend="neutral"
         />
         <StatsCard 
-          icon={CheckCircle2} 
+          icon={Clock} 
           label="Healthy" 
           value={stats.total - stats.stale - stats.errors} 
           change={stats.total > 0 ? `${Math.round(((stats.total - stats.stale - stats.errors)/stats.total)*100)}%` : "0%"}
@@ -594,7 +614,7 @@ export function MemoriesDashboard() {
           trend={stats.stale > 0 ? "down" : "neutral"}
         />
         <StatsCard 
-          icon={AlertCircle} 
+          icon={HardDrive} 
           label="Issues" 
           value={stats.errors + stats.large} 
           change={stats.errors + stats.large > 0 ? "Need attention" : "All good"}
@@ -605,7 +625,7 @@ export function MemoriesDashboard() {
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-[var(--space-fluid-sm)]">
         <div className="relative flex-1 sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          {/* <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /> */}
           <Input
             placeholder="Search memories..."
             value={searchTerm}
@@ -676,7 +696,7 @@ export function MemoriesDashboard() {
       {operationError && (
         <div className="fixed bottom-4 right-4 bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-lg shadow-lg z-50">
           <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
+            {/* <AlertCircle className="h-4 w-4" /> */}
             <span className="text-sm">{operationError}</span>
             <button 
               onClick={() => setOperationError(null)}

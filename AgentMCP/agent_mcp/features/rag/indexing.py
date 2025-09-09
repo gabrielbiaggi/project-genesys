@@ -21,9 +21,8 @@ from ...core.config import (
     logger,
     EMBEDDING_MODEL,
     EMBEDDING_DIMENSION,
-    MAX_EMBEDDING_BATCH_SIZE,
     get_project_dir,
-    OPENAI_API_KEY_ENV,  # Also import the API key env variable
+    # OPENAI_API_KEY_ENV removed - using os.environ.get("OPENAI_API_KEY") directly
     ADVANCED_EMBEDDINGS,  # Import advanced mode flag at module level
 )
 from ...core import globals as g  # For server_running flag
@@ -39,12 +38,15 @@ from ...external.openai_service import (
 from .chunking import simple_chunker, markdown_aware_chunker
 from .code_chunking import (
     chunk_code_aware,
-    detect_language_family,
     extract_code_entities,
     create_file_summary,
     CODE_EXTENSIONS,
     DOCUMENT_EXTENSIONS,
 )
+
+# Placeholder/Feature Flag para resolver erro de linter
+# Esta variável pode ser movida para config.py se a funcionalidade for implementada
+DISABLE_AUTO_INDEXING = False
 
 # Original location: main.py lines 512 - 826 (run_rag_indexing_periodically function and its logic)
 
@@ -155,8 +157,8 @@ async def run_rag_indexing_periodically(
 
     # Get OpenAI client. The service initializes it and stores in g.openai_client_instance
     # The API key itself is also needed for the truly async batch embedding function.
-    # This should come from config.OPENAI_API_KEY_ENV
-    from ...core.config import OPENAI_API_KEY_ENV as openai_api_key_for_batches
+    # Get API key directly from environment
+    openai_api_key_for_batches = os.environ.get("OPENAI_API_KEY")
 
     if not openai_api_key_for_batches:
         logger.error("OpenAI API Key not configured. RAG indexer cannot run.")
@@ -181,6 +183,10 @@ async def run_rag_indexing_periodically(
             )
 
         conn = None  # Initialize conn here for broader scope in try-finally
+
+        # Initialize timestamp trackers
+        max_code_mod_timestamp = 0
+        max_md_mod_timestamp = 0
 
         try:
             conn = get_db_connection()
@@ -222,41 +228,50 @@ async def run_rag_indexing_periodically(
             }
 
             current_project_dir = get_project_dir()  # From config (main.py:537)
-            sources_to_check: List[Tuple[str, str, str, Any, str]] = (
-                []
-            )  # type, ref, content, mod_time/iso, hash
+            sources_to_check: List[
+                Tuple[str, str, str, Any, str]
+            ] = []  # type, ref, content, mod_time/iso, hash
 
             # --- Unify file scanning ---
             all_files_to_scan = []
-            
+
             # Define all extensions to scan
             extensions_to_scan = DOCUMENT_EXTENSIONS
             if ADVANCED_EMBEDDINGS:
                 extensions_to_scan += CODE_EXTENSIONS
-            
-            logger.info(f"Scanning for files with extensions: {', '.join(extensions_to_scan)}")
+
+            logger.info(
+                f"Scanning for files with extensions: {', '.join(extensions_to_scan)}"
+            )
 
             for extension in extensions_to_scan:
                 # Skip '.md' if auto-indexing is off
                 if extension == ".md" and DISABLE_AUTO_INDEXING:
                     continue
-                
+
                 for file_path_str in glob.glob(
                     str(current_project_dir / f"**/*{extension}"), recursive=True
                 ):
                     file_path_obj = Path(file_path_str)
-                    
+
                     # Filter out ignored directories
-                    if any(part in IGNORE_DIRS_FOR_INDEXING for part in file_path_obj.parts):
+                    if any(
+                        part in IGNORE_DIRS_FOR_INDEXING for part in file_path_obj.parts
+                    ):
                         continue
-                    
+
                     # Filter out dotfiles/dotdirs
-                    if any(part.startswith('.') and part not in ['.', '..'] for part in file_path_obj.parts):
+                    if any(
+                        part.startswith(".") and part not in [".", ".."]
+                        for part in file_path_obj.parts
+                    ):
                         continue
-                        
+
                     all_files_to_scan.append(file_path_obj)
-            
-            logger.info(f"Found {len(all_files_to_scan)} total files to consider for indexing.")
+
+            logger.info(
+                f"Found {len(all_files_to_scan)} total files to consider for indexing."
+            )
 
             # Process all found files
             for file_path_obj in all_files_to_scan:
@@ -267,9 +282,13 @@ async def run_rag_indexing_periodically(
                         file_path_obj.relative_to(current_project_dir).as_posix()
                     )
                     current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
-                    
+
                     # Determine source type based on extension
-                    source_type = "code" if file_path_obj.suffix in CODE_EXTENSIONS else "markdown"
+                    source_type = (
+                        "code"
+                        if file_path_obj.suffix in CODE_EXTENSIONS
+                        else "markdown"
+                    )
 
                     sources_to_check.append(
                         (
@@ -285,9 +304,11 @@ async def run_rag_indexing_periodically(
                         max_code_mod_timestamp = mod_time
                     elif source_type == "markdown" and mod_time > max_md_mod_timestamp:
                         max_md_mod_timestamp = mod_time
-                        
+
                 except Exception as e:
-                    logger.warning(f"Failed to read or process file {file_path_obj}: {e}")
+                    logger.warning(
+                        f"Failed to read or process file {file_path_obj}: {e}"
+                    )
 
             # 2. Scan Project Context (Original main.py:585-603)
             last_ctx_time_str = last_indexed_timestamps.get(
@@ -365,9 +386,9 @@ async def run_rag_indexing_periodically(
                         max_task_mod_time_iso = last_mod_iso
 
             # Filter sources based on hash comparison (Original main.py:608-615)
-            sources_to_process_for_embedding: List[Tuple[str, str, str, str]] = (
-                []
-            )  # type, ref, content, current_hash
+            sources_to_process_for_embedding: List[
+                Tuple[str, str, str, str]
+            ] = []  # type, ref, content, current_hash
             for source_type, source_ref, content, _, current_hash in sources_to_check:
                 meta_key_for_hash = f"hash_{source_type}_{source_ref}"
                 stored_source_hash = stored_hashes.get(meta_key_for_hash)
@@ -913,11 +934,11 @@ async def index_all_tasks() -> None:
             # Parse JSON fields
             if task_data.get("depends_on_tasks"):
                 try:
-                    task_data["depends_on_tasks"] = json.loads(
-                        task_data["depends_on_tasks"]
-                    )
+                    depends_on = json.loads(task_data["depends_on_tasks"])
                 except json.JSONDecodeError:
-                    task_data["depends_on_tasks"] = []
+                    depends_on = []
+        if not isinstance(depends_on, list):
+            depends_on = []
 
             await index_task_data(task_data["task_id"], task_data)
 
@@ -964,8 +985,10 @@ def format_task_for_embedding(task_data: Dict[str, Any]) -> str:
     if isinstance(depends_on, str):
         try:
             depends_on = json.loads(depends_on)
-        except:
+        except json.JSONDecodeError:
             depends_on = []
+    if not isinstance(depends_on, list):
+        depends_on = []
 
     if depends_on:
         parts.append(f"Dependencies: {', '.join(depends_on)}")

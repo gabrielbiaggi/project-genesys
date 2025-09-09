@@ -44,7 +44,7 @@ def check_embedding_dimension_compatibility(conn: sqlite3.Connection) -> bool:
         )
 
         if current_dim != EMBEDDING_DIMENSION:
-            logger.warning(f"Embedding dimension mismatch detected!")
+            logger.warning("Embedding dimension mismatch detected!")
             logger.warning(f"  Current table: {current_dim} dimensions")
             logger.warning(f"  Config expects: {EMBEDDING_DIMENSION} dimensions")
             logger.info(
@@ -80,7 +80,7 @@ def handle_embedding_dimension_change(conn: sqlite3.Connection) -> None:
         old_embedding_count = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM rag_chunks")
         chunk_count = cursor.fetchone()[0]
-        logger.info(f"📊 Migration stats:")
+        logger.info("📊 Migration stats:")
         logger.info(f"   • Existing embeddings: {old_embedding_count}")
         logger.info(f"   • Text chunks: {chunk_count}")
     except Exception as e:
@@ -115,14 +115,14 @@ def handle_embedding_dimension_change(conn: sqlite3.Connection) -> None:
         conn.commit()
 
         logger.info("✅ Migration preparation completed successfully")
-        logger.info(f"📝 Next steps:")
+        logger.info("📝 Next steps:")
         logger.info(
             f"   • New vector table will be created with {EMBEDDING_DIMENSION} dimensions"
         )
         logger.info(
             f"   • RAG indexer will automatically re-process all {chunk_count} chunks"
         )
-        logger.info(f"   • This may take a few minutes and will use OpenAI API tokens")
+        logger.info("   • This may take a few minutes and will use OpenAI API tokens")
         logger.info("=" * 60)
 
     except Exception as e:

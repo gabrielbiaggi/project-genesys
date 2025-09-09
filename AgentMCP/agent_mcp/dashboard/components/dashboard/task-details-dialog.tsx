@@ -108,17 +108,20 @@ export function TaskDetailsDialog({ task, open, onOpenChange }: TaskDetailsDialo
                 <div>
                   <h4 className="text-sm font-semibold mb-3">Notes</h4>
                   <div className="space-y-3">
-                    {notes.map((note: any, index) => (
-                      <div key={index} className="bg-muted rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium">{note.author}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(note.timestamp).toLocaleString()}
-                          </span>
+                    {notes.map((note: unknown, index) => {
+                      const noteObj = note as { author: string; timestamp: string; content: string };
+                      return (
+                        <div key={index} className="bg-muted rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium">{noteObj.author}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(noteObj.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-sm">{noteObj.content}</p>
                         </div>
-                        <p className="text-sm">{note.content}</p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
@@ -133,9 +136,9 @@ export function TaskDetailsDialog({ task, open, onOpenChange }: TaskDetailsDialo
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Dependencies</h4>
                     <div className="flex flex-wrap gap-2">
-                      {dependencies.map((depId: any, index) => (
+                      {dependencies.map((depId: unknown, index) => (
                         <Badge key={index} variant="outline" className="text-xs">
-                          {depId}
+                          {String(depId)}
                         </Badge>
                       ))}
                     </div>
@@ -153,9 +156,9 @@ export function TaskDetailsDialog({ task, open, onOpenChange }: TaskDetailsDialo
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Subtasks</h4>
                     <div className="flex flex-wrap gap-2">
-                      {childTasks.map((childId: any, index) => (
+                      {childTasks.map((childId: unknown, index) => (
                         <Badge key={index} variant="outline" className="text-xs">
-                          {childId}
+                          {String(childId)}
                         </Badge>
                       ))}
                     </div>

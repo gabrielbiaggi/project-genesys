@@ -1,7 +1,7 @@
 # Agent-MCP/mcp_template/mcp_server_src/features/rag/query.py
 import json
 import sqlite3  # For type hinting and error handling
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 
 # Imports from our project
 from ...core.config import (
@@ -49,9 +49,9 @@ async def query_rag_system(query_text: str) -> str:
 
         live_context_results: List[Dict[str, Any]] = []
         live_task_results: List[Dict[str, Any]] = []
-        vector_search_results: List[Dict[str, Any]] = (
-            []
-        )  # Store as dicts for easier access
+        vector_search_results: List[
+            Dict[str, Any]
+        ] = []  # Store as dicts for easier access
 
         # --- 1. Fetch Live Context (Recently Updated) ---
         # Original main.py: lines 1445 - 1457
@@ -264,9 +264,9 @@ async def query_rag_system(query_text: str) -> str:
                         if entity_names:
                             source_info += f", Contains: {', '.join(entity_names[:3])}"
                             if len(entity_names) > 3:
-                                source_info += f" (+{len(entity_names)-3} more)"
+                                source_info += f" (+{len(entity_names) - 3} more)"
 
-                entry_text = f"Retrieved Chunk {i+1} (Similarity/Distance: {distance}):\n{source_info}\nContent:\n{chunk_text}\n"
+                entry_text = f"Retrieved Chunk {i + 1} (Similarity/Distance: {distance}):\n{source_info}\nContent:\n{chunk_text}\n"
                 chunk_tokens = len(entry_text.split())
                 if current_token_count + chunk_tokens < MAX_CONTEXT_TOKENS:
                     context_parts.append(entry_text)
@@ -511,9 +511,9 @@ async def query_rag_system_with_model(
                         if entity_names:
                             source_info += f", Contains: {', '.join(entity_names[:3])}"
                             if len(entity_names) > 3:
-                                source_info += f" (+{len(entity_names)-3} more)"
+                                source_info += f" (+{len(entity_names) - 3} more)"
 
-                entry_text = f"Retrieved Chunk {i+1} (Similarity/Distance: {distance}):\n{source_info}\nContent:\n{chunk_text}\n"
+                entry_text = f"Retrieved Chunk {i + 1} (Similarity/Distance: {distance}):\n{source_info}\nContent:\n{chunk_text}\n"
                 chunk_tokens = len(entry_text.split())
                 if current_token_count + chunk_tokens < context_limit:
                     context_parts.append(entry_text)

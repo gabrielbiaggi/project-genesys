@@ -20,9 +20,9 @@ interface VisGraphProps {
   fullscreen?: boolean
   selectedNodeId?: string | null
   selectedNodeType?: 'agent' | 'task' | 'context' | 'file' | 'admin' | null
-  selectedNodeData?: any
+  selectedNodeData?: unknown
   isPanelOpen?: boolean
-  onNodeSelect?: (nodeId: string, nodeType: 'agent' | 'task' | 'context' | 'file' | 'admin', nodeData: any) => void
+  onNodeSelect?: (nodeId: string, nodeType: 'agent' | 'task' | 'context' | 'file' | 'admin', nodeData: unknown) => void
   onClosePanel?: () => void
 }
 

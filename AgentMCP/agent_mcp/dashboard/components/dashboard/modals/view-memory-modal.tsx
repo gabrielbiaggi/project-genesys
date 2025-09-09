@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
 import type { Memory } from '@/lib/api'
 
 interface ViewMemoryModalProps {
@@ -23,7 +22,7 @@ interface ViewMemoryModalProps {
 export function ViewMemoryModal({ memory, open, onOpenChange }: ViewMemoryModalProps) {
   if (!memory) return null
 
-  const formatValue = (value: any) => {
+  const formatValue = (value: unknown) => {
     if (typeof value === 'string') {
       return value
     }

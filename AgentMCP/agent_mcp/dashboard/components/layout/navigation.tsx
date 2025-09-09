@@ -7,7 +7,6 @@ import {
   CheckSquare,
   Brain,
   BookOpen,
-  Book,
   HardDrive
 } from "lucide-react"
 import { cn } from "@/lib/utils"

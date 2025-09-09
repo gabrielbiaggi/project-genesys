@@ -1,110 +1,30 @@
 "use client"
 
-import * as React from "react"
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { 
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarRail,
-  useSidebar as useSidebarUI
-} from "@/components/ui/sidebar"
-import { Navigation } from "./navigation"
-import { useSidebar } from "@/lib/store"
-import { cn } from "@/lib/utils"
-import { ServerManagementModal } from "../server/server-management-modal"
+import React from 'react'
+import { cn } from '@/lib/utils'
+import { useSidebar } from '@/lib/store'
+import { Navigation } from './navigation'
 
 export function AppSidebar() {
-  // Zustand store (used by Navigation component)
-  const { setCollapsed } = useSidebar()
-
-  // SidebarProvider context (controls actual sidebar behaviour)
-  const {
-    state, // "expanded" | "collapsed"
-    toggleSidebar,
-    openMobile,
-    setOpenMobile,
-    isMobile,
-  } = useSidebarUI()
-
-  // Keep the Zustand store in sync with the provider state.
-  React.useEffect(() => {
-    setCollapsed(state === "collapsed")
-  }, [state, setCollapsed])
-
-  // Ensure the sheet (mobile) opens when we navigate to mobile view while expanded.
-  React.useEffect(() => {
-    if (isMobile && state === "expanded") {
-      setOpenMobile(true)
-    }
-  }, [isMobile, state, setOpenMobile])
-
-  const handleToggle = () => {
-    toggleSidebar()
-    // Zustand store will update via the effect above once state changes.
-  }
-
-  const collapsed = state === "collapsed"
+  const { isCollapsed } = useSidebar()
 
   return (
-    <Sidebar 
-      variant="sidebar" 
-      collapsible="icon"
+    <aside
       className={cn(
-        "flex flex-col h-screen z-40 transition-all duration-300",
-        collapsed && !isMobile ? "w-16" : "w-64"
+        "hidden lg:flex flex-col border-r bg-background transition-all duration-300 ease-in-out",
+        isCollapsed ? "w-20" : "w-64"
       )}
     >
-      {/* Sidebar Header */}
-      <SidebarHeader className="border-b px-3 py-3">
-        <div className="flex items-center justify-between">
-          {(!collapsed || isMobile) && (
-            <div className="flex items-center space-x-2">
-              <div className="h-6 w-6 rounded bg-primary/20 flex items-center justify-center">
-                <span className="text-xs font-semibold text-primary">M</span>
-              </div>
-              <span className="font-semibold text-sm text-foreground">MCP Control</span>
-            </div>
-          )}
-          {!isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleToggle}
-              className="h-8 w-8 shrink-0"
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="h-4 w-4" />
-              ) : (
-                <PanelLeftClose className="h-4 w-4" />
-              )}
-              <span className="sr-only">Toggle sidebar</span>
-            </Button>
-          )}
+      <div className="flex h-16 items-center justify-center border-b">
+        {/* Pode adicionar um logo aqui */}
+        <h1 className={cn("font-bold text-lg", isCollapsed && "hidden")}>Genesys</h1>
+        <div className={cn("p-2", !isCollapsed && "hidden")}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
-      </SidebarHeader>
-
-      {/* Sidebar Content */}
-      <SidebarContent className="px-0">
+      </div>
+      <div className="flex-1 overflow-y-auto">
         <Navigation />
-      </SidebarContent>
-
-      {/* Sidebar Footer */}
-      <SidebarFooter className="border-t p-3">
-        <div className="flex items-center justify-between">
-          {!collapsed && (
-            <div className="text-xs text-muted-foreground">
-              <div className="font-medium text-foreground">AgentMCP Dashboard</div>
-              <div className="text-muted-foreground">v2.2 • Improved Dashboard</div>
-            </div>
-          )}
-          <ServerManagementModal />
-        </div>
-      </SidebarFooter>
-
-      <SidebarRail />
-    </Sidebar>
+      </div>
+    </aside>
   )
 }

@@ -8,7 +8,6 @@ import mcp.types as mcp_types
 
 from .registry import register_tool
 from ..core.config import logger
-from ..core import globals as g  # Not directly used here, but auth uses it
 from ..core.auth import get_agent_id, verify_token
 from ..utils.audit_utils import log_audit
 from ..db.connection import get_db_connection, execute_db_write
@@ -45,21 +44,21 @@ def _analyze_context_health(context_entries: List[Dict[str, Any]]) -> Dict[str, 
         if last_updated:
             try:
                 updated_time = datetime.datetime.fromisoformat(
-                    last_updated.replace("Z", "+00:00").replace("+00:00", "")
+                    last_updated.replace("Z", "+00:00")
                 )
                 days_old = (current_time - updated_time).days
                 if days_old > 30:
                     stale_count += 1
                     if days_old > 90:
                         warnings.append(f"'{context_key}' is {days_old} days old")
-            except:
+            except (ValueError, TypeError):
                 warnings.append(f"Invalid timestamp for '{context_key}'")
 
         # Check for oversized entries (>10KB)
         entry_size = len(str(value))
         if entry_size > 10240:  # 10KB
             large_entries += 1
-            warnings.append(f"'{context_key}' is large ({entry_size//1024}KB)")
+            warnings.append(f"'{context_key}' is large ({entry_size // 1024}KB)")
 
     # Calculate health score
     stale_ratio = stale_count / total
@@ -76,7 +75,9 @@ def _analyze_context_health(context_entries: List[Dict[str, Any]]) -> Dict[str, 
         else (
             "good"
             if health_score >= 70
-            else "needs_attention" if health_score >= 50 else "critical"
+            else "needs_attention"
+            if health_score >= 50
+            else "critical"
         )
     )
 
@@ -255,7 +256,7 @@ async def view_project_context_tool_impl(
                         last_updated.replace("Z", "+00:00").replace("+00:00", "")
                     )
                     days_old = (datetime.datetime.now() - updated_time).days
-                except:
+                except (ValueError, TypeError):
                     pass
 
             entry_data = {
@@ -313,7 +314,9 @@ async def view_project_context_tool_impl(
                     else (
                         "🟡"
                         if health_status == "good"
-                        else "🟠" if health_status == "needs_attention" else "🔴"
+                        else "🟠"
+                        if health_status == "needs_attention"
+                        else "🔴"
                     )
                 )
 
@@ -409,7 +412,7 @@ async def view_project_context_tool_impl(
             f"Error decoding JSON from project_context table during bulk view: {e_json}",
             exc_info=True,
         )  # main.py:1465
-        response_message = f"Error decoding stored project context value(s)."
+        response_message = "Error decoding stored project context value(s)."
     except Exception as e:
         logger.error(f"Unexpected error viewing project context: {e}", exc_info=True)
         response_message = f"An unexpected error occurred: {e}"
@@ -440,7 +443,6 @@ async def _handle_single_context_update(
         },
     )
 
-    conn = None
     try:
         # Ensure value is JSON serializable before storing
         value_json_str = json.dumps(context_value_to_set)
@@ -563,7 +565,7 @@ async def _handle_bulk_context_update(
                     context_key = update["context_key"]
                     context_value = update["context_value"]
                     description = update.get(
-                        "description", f"Bulk update operation {i+1}"
+                        "description", f"Bulk update operation {i + 1}"
                     )
 
                     # Validate JSON serialization
@@ -593,7 +595,7 @@ async def _handle_bulk_context_update(
                         "bulk_updated_context",
                         details={
                             "context_key": context_key,
-                            "operation": f"bulk_update_{i+1}",
+                            "operation": f"bulk_update_{i + 1}",
                         },
                     )
 
@@ -772,7 +774,9 @@ async def bulk_update_project_context_tool_impl(
             try:
                 context_key = update["context_key"]
                 context_value = update["context_value"]
-                description = update.get("description", f"Bulk update operation {i+1}")
+                description = update.get(
+                    "description", f"Bulk update operation {i + 1}"
+                )
 
                 # Validate JSON serialization
                 value_json_str = json.dumps(context_value)
@@ -801,7 +805,7 @@ async def bulk_update_project_context_tool_impl(
                     "bulk_updated_context",
                     details={
                         "context_key": context_key,
-                        "operation": f"bulk_update_{i+1}",
+                        "operation": f"bulk_update_{i + 1}",
                     },
                 )
 
@@ -917,7 +921,7 @@ async def backup_project_context_tool_impl(
 
         # Generate response
         response_parts = [
-            f"✅ **Context Backup Created**",
+            "✅ **Context Backup Created**",
             f"   Name: {backup_data['backup_name']}",
             f"   Entries: {backup_data['total_entries']}",
             f"   File: {backup_path}",
@@ -932,7 +936,9 @@ async def backup_project_context_tool_impl(
                 else (
                     "🟡"
                     if health["status"] == "good"
-                    else "🟠" if health["status"] == "needs_attention" else "🔴"
+                    else "🟠"
+                    if health["status"] == "needs_attention"
+                    else "🔴"
                 )
             )
 
@@ -1073,7 +1079,7 @@ async def validate_context_consistency_tool_impl(
                 warnings.append(f"... and {len(large_entries) - 5} more large entries")
 
         # Build response
-        response_parts = [f"Context Consistency Validation Results"]
+        response_parts = ["Context Consistency Validation Results"]
         response_parts.append(f"Total entries: {len(all_entries)}")
 
         if not issues and not warnings:

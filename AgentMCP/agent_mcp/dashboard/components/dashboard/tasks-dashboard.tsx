@@ -17,6 +17,7 @@ import { apiClient, Task } from "@/lib/api"
 import { useServerStore } from "@/lib/stores/server-store"
 import { cn } from "@/lib/utils"
 import { TaskDetailsPanel } from "./task-details-panel"
+import { useToast } from "@/hooks/use-toast"
 
 // Cache for tasks data
 const tasksCache = new Map<string, { data: Task[], timestamp: number }>()
@@ -271,7 +272,7 @@ const CompactTaskRow = React.memo(({ task, onTaskClick }: { task: Task, onTaskCl
 CompactTaskRow.displayName = 'CompactTaskRow'
 
 const StatsCard = React.memo(({ icon: Icon, label, value, change, trend }: {
-  icon: any
+  icon: React.ComponentType<{ className?: string }>
   label: string
   value: number
   change?: string
@@ -301,7 +302,12 @@ const StatsCard = React.memo(({ icon: Icon, label, value, change, trend }: {
 ))
 StatsCard.displayName = 'StatsCard'
 
-const CreateTaskModal = React.memo(({ onCreateTask }: { onCreateTask: (data: any) => void }) => {
+const CreateTaskModal = React.memo(({ onCreateTask }: { onCreateTask: (data: {
+  title: string;
+  description: string | undefined;
+  priority: Task['priority'];
+  assigned_to: string | undefined;
+}) => void }) => {
   const [open, setOpen] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
@@ -415,6 +421,7 @@ export function TasksDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const { toast } = useToast()
 
   // Memoize filtered tasks to prevent unnecessary recalculations
   const filteredTasks = useMemo(() => {
@@ -436,15 +443,29 @@ export function TasksDashboard() {
     failed: tasks.filter(t => t.status === 'failed').length,
   }), [tasks])
 
-  const handleCreateTask = useCallback(async (data: any) => {
+  const handleCreateTask = useCallback(async (data: {
+    title: string;
+    description: string | undefined;
+    priority: Task['priority'];
+    assigned_to: string | undefined;
+  }) => {
     try {
       await apiClient.createTask(data)
       // Refresh tasks after creating a new one
       refresh()
+      toast({
+        title: "Sucesso",
+        description: `Tarefa "${data.title}" foi criada.`,
+      })
     } catch (error) {
       console.error('Failed to create task:', error)
+      toast({
+        title: "Erro ao criar tarefa",
+        description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
+        variant: "destructive",
+      })
     }
-  }, [refresh])
+  }, [refresh, toast])
 
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTask(task)

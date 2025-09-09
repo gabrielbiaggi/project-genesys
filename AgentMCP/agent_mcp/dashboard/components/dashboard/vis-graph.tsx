@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useRef, useCallback, useState } from 'react'
-import { Network, DataSet } from 'vis-network/standalone'
+import { Network, DataSet, Node, Edge } from 'vis-network/standalone'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,18 @@ import {
 import { apiClient } from '@/lib/api'
 import { useServerStore } from '@/lib/stores/server-store'
 import { cn } from '@/lib/utils'
+
+interface VisNode extends Node {
+  label?: string;
+  title?: string;
+  group?: string;
+  status?: string;
+  color?: string | { background: string; border: string };
+}
+
+interface VisEdge extends Edge {
+  title?: string;
+}
 
 // Physics options from the original implementation
 const physicsOptions = {
@@ -261,10 +273,10 @@ const hierarchicalOptions = {
 }
 
 // Helper function to get node styling based on status
-const getNodeStyling = (node: any) => {
+const getNodeStyling = (node: { group?: string; status?: string; color?: string }) => {
   const baseSize = 15
   let size = baseSize
-  let color = undefined
+  let color: { background: string; border: string } | undefined = undefined
   let shape = 'box'
 
   if (node.group === 'agent') {
@@ -308,13 +320,14 @@ const getNodeStyling = (node: any) => {
 
 interface VisGraphProps {
   fullscreen?: boolean
+  onNodeSelect?: (nodeId: string, nodeType: 'agent' | 'task' | 'context' | 'file' | 'admin', nodeData: unknown) => void
 }
 
-export function VisGraph({ fullscreen = false }: VisGraphProps) {
+export function VisGraph({ fullscreen = false, onNodeSelect }: VisGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
-  const nodesDataSetRef = useRef<DataSet<any>>(new DataSet())
-  const edgesDataSetRef = useRef<DataSet<any>>(new DataSet())
+  const nodesDataSetRef = useRef<DataSet<VisNode>>(new DataSet())
+  const edgesDataSetRef = useRef<DataSet<VisEdge>>(new DataSet())
   
   const { activeServerId, servers } = useServerStore()
   const activeServer = servers.find(s => s.id === activeServerId)
@@ -323,12 +336,12 @@ export function VisGraph({ fullscreen = false }: VisGraphProps) {
   const [error, setError] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<'physics' | 'hierarchical'>('physics')
   const [autoRefresh, setAutoRefresh] = useState(false)
-  const [selectedNode, setSelectedNode] = useState<any>(null)
+  const [selectedNode, setSelectedNode] = useState<Record<string, unknown> | null>(null)
   const [nodeCount, setNodeCount] = useState(0)
   const [edgeCount, setEdgeCount] = useState(0)
 
   // Convert API data to vis.js format
-  const convertToVisData = useCallback((graphData: any) => {
+  const convertToVisData = useCallback((graphData: { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }) => {
     if (!graphData || !graphData.nodes || !graphData.edges) {
       console.warn('Invalid graph data structure:', graphData)
       return
@@ -337,30 +350,30 @@ export function VisGraph({ fullscreen = false }: VisGraphProps) {
     console.log(`[Graph] Converting ${graphData.nodes.length} nodes and ${graphData.edges.length} edges`)
 
     // Convert nodes
-    const visNodes = graphData.nodes.map((node: any) => {
-      const styling = getNodeStyling(node)
+    const visNodes: VisNode[] = graphData.nodes.map((node) => {
+      const styling = getNodeStyling(node as { group?: string; status?: string; color?: string })
       
       return {
-        id: node.id,
-        label: node.label || node.id,
-        title: node.title || `${node.group}: ${node.label}`,
-        group: node.group,
+        id: node.id as string,
+        label: (node.label as string) || (node.id as string),
+        title: (node.title as string) || `${node.group}: ${node.label}`,
+        group: node.group as string,
         ...styling,
-        ...node // Include all original properties
+        ...node
       }
     })
 
     // Convert edges
-    const visEdges = graphData.edges.map((edge: any, index: number) => {
-      const edgeStyle: any = {
-        from: edge.from,
-        to: edge.to,
-        id: edge.id || `edge-${index}`,
+    const visEdges: VisEdge[] = graphData.edges.map((edge, index: number) => {
+      const edgeStyle: Record<string, unknown> = {
+        from: edge.from as string,
+        to: edge.to as string,
+        id: (edge.id as string) || `edge-${index}`,
         arrows: edge.arrows || { to: { enabled: true, scaleFactor: 0.5 } }
       }
 
       // Apply edge styling based on type
-      if (edge.title) {
+      if (typeof edge.title === 'string') {
         edgeStyle.title = edge.title
         
         if (edge.title.includes('Created by')) {
@@ -388,15 +401,30 @@ export function VisGraph({ fullscreen = false }: VisGraphProps) {
       if (edge.color) edgeStyle.color = edge.color
       if (edge.width) edgeStyle.width = edge.width
 
-      return edgeStyle
+      return edgeStyle as VisEdge
     })
 
     // Update the DataSets
-    console.log('[Graph] Updating node and edge datasets.')
-    nodesDataSetRef.current.clear()
-    nodesDataSetRef.current.add(visNodes)
-    edgesDataSetRef.current.clear()
-    edgesDataSetRef.current.add(visEdges)
+    const newNodeIds = visNodes.map(n => n.id)
+    const newEdgeIds = visEdges.map(e => e.id)
+    const oldNodeIds = nodesDataSetRef.current.getIds()
+    const oldEdgeIds = edgesDataSetRef.current.getIds()
+
+    const nodesToRemove = oldNodeIds.filter(id => !newNodeIds.includes(id))
+    const nodesToUpdate = visNodes.filter(n => oldNodeIds.includes(n.id))
+    const nodesToAdd = visNodes.filter(n => !oldNodeIds.includes(n.id))
+    
+    const edgesToRemove = oldEdgeIds.filter(id => !newEdgeIds.includes(id))
+    const edgesToUpdate = visEdges.filter(e => e.id && oldEdgeIds.includes(e.id))
+    const edgesToAdd = visEdges.filter(e => e.id && !oldEdgeIds.includes(e.id))
+
+    if (nodesToRemove.length > 0) nodesDataSetRef.current.remove(nodesToRemove)
+    if (nodesToUpdate.length > 0) nodesDataSetRef.current.update(nodesToUpdate)
+    if (nodesToAdd.length > 0) nodesDataSetRef.current.add(nodesToAdd)
+    
+    if (edgesToRemove.length > 0) edgesDataSetRef.current.remove(edgesToRemove)
+    if (edgesToUpdate.length > 0) edgesDataSetRef.current.update(edgesToUpdate)
+    if (edgesToAdd.length > 0) edgesDataSetRef.current.add(edgesToAdd)
     
     setNodeCount(visNodes.length)
     setEdgeCount(visEdges.length)
@@ -464,11 +492,17 @@ export function VisGraph({ fullscreen = false }: VisGraphProps) {
         const nodeId = params.nodes[0]
         const node = nodesDataSetRef.current.get(nodeId)
         setSelectedNode(node)
+        if (onNodeSelect && node) {
+          onNodeSelect(node.id as string, node.group as 'agent' | 'task' | 'context' | 'file' | 'admin', node)
+        }
       }
     })
 
     network.on('deselectNode', () => {
       setSelectedNode(null)
+      if (onNodeSelect) {
+        onNodeSelect('', 'admin', null) // Clear selection
+      }
     })
 
     // Cleanup
@@ -476,7 +510,7 @@ export function VisGraph({ fullscreen = false }: VisGraphProps) {
       network.destroy()
       networkRef.current = null
     }
-  }, [layoutMode])
+  }, [layoutMode, onNodeSelect])
 
   // Fetch data on mount and handle auto-refresh
   useEffect(() => {

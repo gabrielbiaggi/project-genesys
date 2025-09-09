@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useCallback, useState, Profiler } from 'react'
+import React, { useEffect, useRef, useCallback, useState } from 'react'
 import { Network, DataSet } from 'vis-network/standalone'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -33,16 +33,43 @@ interface VisEdge {
   color?: string | { color?: string; highlight?: string; hover?: string };
   width?: number;
   dashes?: boolean;
+  smooth?: boolean | { enabled: boolean; type: string; forceDirection?: string | 'none'; roundness: number };
   [key: string]: unknown;
+}
+
+interface ApiNode {
+  id: string;
+  label?: string;
+  group?: 'agent' | 'task' | 'context' | 'file' | 'admin';
+  status?: string;
+  color?: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
+interface ApiEdge {
+  id?: string;
+  from: string;
+  to: string;
+  title?: string;
+  arrows?: { to?: { enabled?: boolean; scaleFactor?: number } };
+  color?: string | { color?: string; highlight?: string; hover?: string };
+  width?: number;
+  [key: string]: unknown;
+}
+
+interface GraphData {
+  nodes: ApiNode[];
+  edges: ApiEdge[];
 }
 
 interface VisGraphProps {
   fullscreen?: boolean
   selectedNodeId?: string | null
   selectedNodeType?: 'agent' | 'task' | 'context' | 'file' | 'admin' | null
-  selectedNodeData?: any
+  selectedNodeData?: unknown
   isPanelOpen?: boolean
-  onNodeSelect?: (nodeId: string, nodeType: 'agent' | 'task' | 'context' | 'file' | 'admin', nodeData: any) => void
+  onNodeSelect?: (nodeId: string, nodeType: 'agent' | 'task' | 'context' | 'file' | 'admin', nodeData: VisNode) => void
   onClosePanel?: () => void
 }
 
@@ -181,11 +208,16 @@ const hierarchicalOptions = {
   groups: physicsOptions.groups
 }
 
+// Window type for cleanup function
+interface WindowWithVisCleanup extends Window {
+  __visCleanup?: () => void;
+}
+
 // Get node styling based on type - using our custom teal/cyan theme
-const getNodeStyling = (node: any) => {
+const getNodeStyling = (node: { group?: string; status?: string; }) => {
   const baseSize = 25
   let size = baseSize
-  let color: any = {}
+  let color: { background: string; border: string; } | Record<string, never> = {}
   let shape = 'box'
 
   // Ignore backend colors and use our own theme
@@ -253,13 +285,6 @@ const getNodeStyling = (node: any) => {
   return { size, color, shape }
 }
 
-// Performance profiling callback for vis graph
-const onVisGraphRender = (id: string, phase: "mount" | "update" | "nested-update", actualDuration: number) => {
-  if (actualDuration > 16.67) { // Log if render takes longer than 60fps (16.67ms)
-    console.warn(`[VisGraph] Slow render detected: ${actualDuration.toFixed(2)}ms for ${phase}`)
-  }
-}
-
 export default function VisNetworkLoader({ 
   fullscreen = false, 
   onNodeSelect
@@ -289,7 +314,7 @@ export default function VisNetworkLoader({
   }, [])
 
   // Convert API data to vis.js format with smart diffing
-  const convertToVisData = useCallback((graphData: any) => {
+  const convertToVisData = useCallback((graphData: GraphData) => {
     performance.mark('vis-data-conversion-start')
     
     if (!graphData || !graphData.nodes || !graphData.edges) {
@@ -303,13 +328,13 @@ export default function VisNetworkLoader({
 
     // Filter out idle agents (agents with no edges connecting to them)
     const nodeIdsWithConnections = new Set<string>()
-    graphData.edges.forEach((edge: { from: string; to: string }) => {
+    graphData.edges.forEach((edge) => {
       nodeIdsWithConnections.add(edge.from)
       nodeIdsWithConnections.add(edge.to)
     })
 
     // Filter nodes - keep admin, non-agents, and agents with connections
-    const filteredNodes = graphData.nodes.filter((node: { group?: string; id: string }) => {
+    const filteredNodes = graphData.nodes.filter((node) => {
       // In tree mode, only show tasks
       if (layoutMode === 'hierarchical') {
         return node.group === 'task' || node.group === 'file'
@@ -322,11 +347,11 @@ export default function VisNetworkLoader({
     })
 
     // Separate nodes by type for better organization
-    const contextNodes = filteredNodes.filter((n: { group?: string }) => n.group === 'context')
-    const taskNodes = filteredNodes.filter((n: { group?: string }) => n.group === 'task')
+    const contextNodes = filteredNodes.filter((n) => n.group === 'context')
+    const taskNodes = filteredNodes.filter((n) => n.group === 'task')
     
     // Convert nodes with organized positioning
-    const visNodes = filteredNodes.map((node: { id: string; group?: string; label?: string; [key: string]: unknown }) => {
+    const visNodes: VisNode[] = filteredNodes.map((node) => {
       const styling = getNodeStyling(node)
       
       // Fixed position for admin node at center
@@ -345,7 +370,7 @@ export default function VisNetworkLoader({
       
       // Position context nodes in a crown/circle around admin
       if (node.group === 'context') {
-        const contextIndex = contextNodes.findIndex((n: any) => n.id === node.id)
+        const contextIndex = contextNodes.findIndex((n) => n.id === node.id)
         const angleStep = (2 * Math.PI) / contextNodes.length
         const angle = contextIndex * angleStep
         const radius = 400 // Fixed radius for the crown
@@ -364,7 +389,7 @@ export default function VisNetworkLoader({
       
       // Position task nodes in an outer ring
       if (node.group === 'task') {
-        const taskIndex = taskNodes.findIndex((n: any) => n.id === node.id)
+        const taskIndex = taskNodes.findIndex((n) => n.id === node.id)
         const angleStep = (2 * Math.PI) / taskNodes.length
         const angle = taskIndex * angleStep + (Math.PI / taskNodes.length) // Offset to avoid alignment
         const radius = 600 + (taskIndex % 2) * 100 // Alternate between two radii
@@ -388,18 +413,18 @@ export default function VisNetworkLoader({
     })
 
     // Convert edges - filter based on layout mode
-    const visEdges = graphData.edges.filter((edge: any) => {
+    const visEdges: VisEdge[] = graphData.edges.filter((edge) => {
       // In tree mode, only show edges between visible nodes
       if (layoutMode === 'hierarchical') {
-        const fromNode = filteredNodes.find((n: any) => n.id === edge.from)
-        const toNode = filteredNodes.find((n: any) => n.id === edge.to)
+        const fromNode = filteredNodes.find((n) => n.id === edge.from)
+        const toNode = filteredNodes.find((n) => n.id === edge.to)
         
         // Only keep edges where both nodes are visible
-        return fromNode && toNode
+        return !!(fromNode && toNode)
       }
       return true
-    }).map((edge: any, index: number) => {
-      const edgeStyle: any = {
+    }).map((edge, index) => {
+      const edgeStyle: VisEdge = {
         from: edge.from,
         to: edge.to,
         id: edge.id || `edge-${index}`,
@@ -407,11 +432,11 @@ export default function VisNetworkLoader({
       }
 
       // Apply edge styling based on type using our teal/cyan theme
-      if (edge.title) {
+      if (typeof edge.title === 'string') {
         if (edge.title.includes('Created by')) {
-          edgeStyle.color = { color: 'rgba(148, 163, 184, 0.3)', opacity: 0.3 } // slate-400 subtle
+          edgeStyle.color = { color: 'rgba(148, 163, 184, 0.3)' }
           edgeStyle.width = 0.5
-          edgeStyle.dashes = [2, 4]
+          edgeStyle.dashes = true
         } else if (edge.title.includes('Parent of')) {
           edgeStyle.color = { color: 'rgba(20, 184, 166, 0.8)' } // teal-500
           edgeStyle.width = 3
@@ -424,15 +449,17 @@ export default function VisNetworkLoader({
         } else if (edge.title.includes('Working on')) {
           edgeStyle.color = { color: 'rgba(34, 211, 238, 0.9)' } // cyan-400
           edgeStyle.width = 3
-          edgeStyle.smooth = { enabled: true, type: 'continuous' }
+          edgeStyle.smooth = { enabled: true, type: 'continuous', roundness: 0.5 }
         }
       }
       
       // Special styling for edges to/from context nodes
-      if (edge.from.includes('context') || edge.to.includes('context')) {
-        edgeStyle.color = { color: 'rgba(147, 51, 234, 0.4)', opacity: 0.4 } // purple-600 with opacity
+      const fromNode = filteredNodes.find(n => n.id === edge.from)
+      const toNode = filteredNodes.find(n => n.id === edge.to)
+      if ((fromNode && fromNode.group === 'context') || (toNode && toNode.group === 'context')) {
+        edgeStyle.color = { color: 'rgba(147, 51, 234, 0.4)' }
         edgeStyle.width = 1
-        edgeStyle.dashes = [3, 6]
+        edgeStyle.dashes = true
         edgeStyle.smooth = { enabled: true, type: 'continuous', roundness: 0.8 }
         edgeStyle.arrows = { to: { enabled: true, scaleFactor: 0.3 } }
       }
@@ -445,15 +472,15 @@ export default function VisNetworkLoader({
     })
 
     // Smart update - only update what's changed
-    const newNodeIds = new Set(visNodes.map((n: any) => n.id))
-    const newEdgeIds = new Set(visEdges.map((e: any) => e.id))
+    const newNodeIds = new Set(visNodes.map((n) => n.id))
+    const newEdgeIds = new Set(visEdges.map((e) => e.id).filter(Boolean) as string[])
 
     // Find nodes to remove, update, and add
     const nodesToRemove = Array.from(currentNodeIds).filter(id => !newNodeIds.has(id))
-    const nodesToUpdate: any[] = []
-    const nodesToAdd: any[] = []
+    const nodesToUpdate: VisNode[] = []
+    const nodesToAdd: VisNode[] = []
 
-    visNodes.forEach((node: any) => {
+    visNodes.forEach((node) => {
       if (currentNodeIds.has(node.id)) {
         // Check if node has actually changed
         const currentNode = nodesDataSetRef.current.get(node.id)
@@ -467,11 +494,11 @@ export default function VisNetworkLoader({
 
     // Find edges to remove, update, and add
     const edgesToRemove = Array.from(currentEdgeIds).filter(id => !newEdgeIds.has(id))
-    const edgesToUpdate: any[] = []
-    const edgesToAdd: any[] = []
+    const edgesToUpdate: VisEdge[] = []
+    const edgesToAdd: VisEdge[] = []
 
-    visEdges.forEach((edge: any) => {
-      if (currentEdgeIds.has(edge.id)) {
+    visEdges.forEach((edge) => {
+      if (edge.id && currentEdgeIds.has(edge.id)) {
         // Check if edge has actually changed
         const currentEdge = edgesDataSetRef.current.get(edge.id)
         if (JSON.stringify(currentEdge) !== JSON.stringify(edge)) {
@@ -582,15 +609,15 @@ export default function VisNetworkLoader({
       // Add click event handler
       network.on('click', (params) => {
         if (params.nodes.length > 0 && onNodeSelect) {
-          const nodeId = params.nodes[0]
+          const nodeId = params.nodes[0] as string
           const node = nodesDataSetRef.current.get(nodeId)
           
           if (node) {
-            const nodeData = node as any
+            const nodeData = node as VisNode
             if (nodeData.group === 'admin') {
               // Special handling for admin node
-              onNodeSelect('admin', 'admin' as any, node)
-            } else if (nodeData.group === 'agent' || nodeData.group === 'task' || nodeData.group === 'context' || nodeData.group === 'file') {
+              onNodeSelect('admin', 'admin', node)
+            } else if (nodeData.group && ['agent', 'task', 'context', 'file'].includes(nodeData.group)) {
               onNodeSelect(nodeId, nodeData.group as 'agent' | 'task' | 'context' | 'file', node)
             }
           }
@@ -639,15 +666,15 @@ export default function VisNetworkLoader({
       }
 
       // Store cleanup in a ref for later use
-      ;(window as any).__visCleanup = cleanup
+      ;(window as WindowWithVisCleanup).__visCleanup = cleanup
     }, 100) // 100ms delay to ensure DOM is ready
 
     // Cleanup
     return () => {
       clearTimeout(initTimer)
-      if ((window as any).__visCleanup) {
-        ;(window as any).__visCleanup()
-        delete (window as any).__visCleanup
+      if ((window as WindowWithVisCleanup).__visCleanup) {
+        ;(window as WindowWithVisCleanup).__visCleanup()
+        delete (window as WindowWithVisCleanup).__visCleanup
       }
     }
   }, [layoutMode, isMounted, onNodeSelect])
@@ -680,12 +707,11 @@ export default function VisNetworkLoader({
   }, [])
 
   return (
-    <React.Profiler id="VisGraph" onRender={onVisGraphRender}>
-      <div className={cn("w-full h-full flex", fullscreen ? "" : "graph-container rounded-lg border")}>
-        {/* Main Content Area - Graph */}
-        <div className="relative flex-1 min-w-0 bg-muted/20">
-          {/* Controls Bar - Positioned over the graph */}
-          <div className="absolute top-[var(--space-fluid-sm)] left-[var(--space-fluid-sm)] right-[var(--space-fluid-sm)] z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-[var(--space-fluid-xs)]">
+    <div className={cn("w-full h-full flex", fullscreen ? "" : "graph-container rounded-lg border")}>
+      {/* Main Content Area - Graph */}
+      <div className="relative flex-1 min-w-0 bg-muted/20">
+        {/* Controls Bar - Positioned over the graph */}
+        <div className="absolute top-[var(--space-fluid-sm)] left-[var(--space-fluid-sm)] right-[var(--space-fluid-sm)] z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-[var(--space-fluid-xs)]">
             {/* Left side - Layout controls */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="bg-background/95 backdrop-blur rounded-lg border p-0.5 sm:p-1 flex gap-0.5 sm:gap-1">
@@ -775,6 +801,5 @@ export default function VisNetworkLoader({
           )}
         </div>
       </div>
-    </React.Profiler>
   )
 }

@@ -5,6 +5,7 @@ To use:
 from mcp_server_src.core import globals as g
 g.admin_token = "new_token"
 """
+
 import anyio  # For rag_index_task type hint
 from typing import Dict, List, Optional, Any
 
@@ -27,9 +28,9 @@ tasks: Dict[str, Dict[str, Any]] = {}  # Task ID -> Task data (in-memory cache o
 
 # --- File and Directory State ---
 # From main.py:153
-file_map: Dict[str, Dict[str, Any]] = (
-    {}
-)  # filepath -> {"agent_id": ..., "timestamp": ..., "status": ...}
+file_map: Dict[
+    str, Dict[str, Any]
+] = {}  # filepath -> {"agent_id": ..., "timestamp": ..., "status": ...}
 
 # From main.py:154
 agent_working_dirs: Dict[str, str] = {}  # agent_id -> absolute_working_directory_path
@@ -51,9 +52,7 @@ agent_color_index: int = 0  # For cycling through AGENT_COLORS from config.py
 
 # --- Server Lifecycle ---
 # From main.py:169
-server_running: bool = (
-    True  # Flag to control main server loop and background tasks, handled by signal_utils.py
-)
+server_running: bool = True  # Flag to control main server loop and background tasks, handled by signal_utils.py
 
 # --- External Service Clients (Placeholders) ---
 # From main.py:185
@@ -82,7 +81,20 @@ rag_index_task_scope: Optional[anyio.abc.CancelScope] = None
 # Handle for the Claude Code session monitoring background task
 claude_session_task_scope: Optional[anyio.abc.CancelScope] = None
 
-# Note: The original `main.py` also had `openai_client = None` at line 185.
-# I've named it `openai_client_instance` here to avoid confusion with the module name
-# if we later have `import openai_client from ...`.
-# The actual OpenAI client will be initialized and managed in `external/openai_service.py`.
+# Para monitoramento de sessão de código Claude (Recurso 7)
+# Inicializado como um dicionário vazio
+claude_sessions: Dict[str, Any] = {}
+# Rastreia o último estado conhecido do arquivo de registro do Claude
+last_claude_registry_state: Dict[str, Any] = {}
+
+# Para o pesquisador autônomo (Recurso 2)
+autonomous_research_task_scope: Optional[anyio.abc.CancelScope] = None
+
+# Genesys Agent Instance
+genesys_agent_instance: Optional["GenesysAgent"] = None  # type: ignore # noqa
+
+
+class _TaskScope:
+    pass
+
+# Note: The original `main.py` also had `

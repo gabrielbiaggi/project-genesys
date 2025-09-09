@@ -583,7 +583,7 @@ export function NodeDetailPanel({ nodeId, nodeType, isOpen, onClose, nodeData }:
                     <Hash className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold">{(nodeData as any)?.label || nodeId}</h3>
+                    <h3 className="text-lg font-semibold">{(nodeData as { label?: string })?.label || nodeId}</h3>
                     <p className="text-sm text-muted-foreground capitalize">{nodeType}</p>
                   </div>
                 </div>
